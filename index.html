@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <title>GPT Image Studio Standalone</title>
+  <style>
+    :root {
+      --bg: #101319;
+      --surface: #181d25;
+      --surface-2: #202733;
+      --border: #303947;
+      --text: #eef2f6;
+      --muted: #9ca8b6;
+      --accent: #65a9ff;
+      --accent-strong: #3789ee;
+      --warm: #f2b66f;
+      --danger: #ff7f7f;
+      --success: #76d4ad;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }
+    body { padding: 24px; }
+    .shell { max-width: 1240px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 22px; }
+    .brand { display: flex; gap: 13px; align-items: center; }
+    .mark { width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 9px; display: grid; place-items: center; background: #222a36; color: var(--accent); font-weight: 800; letter-spacing: -1px; }
+    h1 { font-size: 22px; letter-spacing: 0; margin: 0 0 4px; }
+    .subtitle { color: var(--muted); font-size: 13px; margin: 0; }
+    .lan-slot { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); border: 1px dashed #485466; padding: 8px 11px; border-radius: 8px; font-size: 12px; white-space: nowrap; }
+    .lan-slot span { color: var(--warm); }
+    .layout { display: grid; grid-template-columns: minmax(300px, 0.92fr) minmax(360px, 1.08fr); gap: 18px; align-items: start; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+    .panel + .panel { margin-top: 14px; }
+    details.panel { padding: 0; }
+    details.panel > summary { list-style: none; cursor: pointer; padding: 18px; margin: 0; }
+    details.panel > summary::-webkit-details-marker { display: none; }
+    details.panel > summary::after { content: '+'; color: var(--muted); font-size: 17px; line-height: 1; }
+    details.panel[open] > summary::after { content: '\2212'; }
+    details.panel[open] > summary { border-bottom: 1px solid var(--border); }
+    .collapsible-content { padding: 18px; }
+    .collapsible-content > :first-child { margin-top: 0; }
+    .quick-actions .actions { margin-top: 0; }
+    .panel-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 15px; font-size: 14px; font-weight: 700; }
+    .panel-title small { color: var(--muted); font-size: 11px; font-weight: 500; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #c9d2dd; margin: 0 0 7px; }
+    .field { margin-bottom: 14px; }
+    input, textarea, select { width: 100%; border: 1px solid var(--border); color: var(--text); background: #11161d; border-radius: 7px; padding: 10px 11px; font: inherit; font-size: 13px; outline: none; transition: border-color .15s, box-shadow .15s; }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px #65a9ff26; }
+    textarea { min-height: 178px; resize: vertical; line-height: 1.55; }
+    select { appearance: auto; }
+    .input-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+    .hint { color: var(--muted); font-size: 11px; line-height: 1.45; margin-top: 6px; }
+    .notice { border-left: 3px solid var(--warm); background: #2b251c; color: #decba9; border-radius: 6px; padding: 9px 10px; line-height: 1.45; font-size: 11px; margin-top: 3px; }
+    .mode { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; background: #11161d; border: 1px solid var(--border); border-radius: 8px; padding: 4px; margin-bottom: 16px; }
+    .mode button { background: transparent; border: 0; color: var(--muted); padding: 9px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .mode button.active { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px #425165; }
+    .upload { border: 1px dashed #536276; border-radius: 8px; padding: 13px; background: #131922; }
+    .upload input { border: 0; padding: 0; background: transparent; margin-top: 3px; }
+    .upload-preview { display: none; position: relative; margin-top: 11px; }
+    .upload-preview.show { display: block; }
+    .source-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .source-card { min-width: 0; position: relative; border: 1px solid var(--border); border-radius: 7px; background: #0d1117; padding: 5px; }
+    .source-card img { display: block; width: 100%; height: 125px; object-fit: contain; border-radius: 4px; }
+    .source-card .file-meta { display: block; margin: 5px 22px 1px 2px; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .source-remove { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; padding: 0; border: 1px solid #526176; border-radius: 5px; color: var(--text); background: #151c26e8; cursor: pointer; line-height: 1; }
+    .source-remove:hover { border-color: var(--danger); color: var(--danger); }
+    .params { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .check input { width: auto; accent-color: var(--accent); }
+    .option-check { display: flex; align-items: center; gap: 8px; width: fit-content; margin: 13px 0 0; color: #d5dde7; font-size: 12px; cursor: pointer; }
+    .option-check input { width: auto; margin: 0; accent-color: var(--accent); }
+    .actions { display: flex; gap: 8px; align-items: center; margin-top: 16px; }
+    button.primary, button.secondary, button.icon { border: 1px solid transparent; border-radius: 7px; padding: 10px 14px; font: inherit; font-size: 12px; cursor: pointer; transition: background .15s, border-color .15s, opacity .15s; }
+    button.primary { background: var(--accent-strong); color: white; font-weight: 700; flex: 1; }
+    button.primary:hover { background: #4c98f4; }
+    button.secondary { border-color: var(--border); color: var(--text); background: var(--surface-2); }
+    button.secondary:hover, button.icon:hover { border-color: #54657b; }
+    button.icon { background: transparent; border-color: var(--border); color: var(--muted); padding: 8px 10px; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .result-panel { min-height: 530px; display: flex; flex-direction: column; }
+    .status-line { display: flex; justify-content: space-between; gap: 10px; align-items: center; color: var(--muted); font-size: 12px; margin: -4px 0 12px; }
+    .status-line strong { color: var(--text); font-variant-numeric: tabular-nums; }
+    .stage { flex: 1; min-height: 420px; border: 1px solid var(--border); border-radius: 8px; background: #0d1117; display: grid; place-items: center; overflow: hidden; position: relative; }
+    .stage img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+    .stage-resolution { position: absolute; left: 8px; bottom: 8px; padding: 4px 7px; border-radius: 5px; color: #dce4ed; background: #0c1118d9; border: 1px solid #485568; font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; }
+    .result-flag { position: absolute; left: 8px; top: 8px; padding: 5px 8px; border-radius: 5px; color: #d6f7e9; background: #123126e6; border: 1px solid #39765e; font-size: 10px; pointer-events: none; }
+    .previewable { cursor: zoom-in; }
+    .previewable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .empty { text-align: center; color: #7d8998; font-size: 12px; padding: 30px; }
+    .empty .glyph { font-size: 32px; margin-bottom: 8px; color: #4e5c6d; }
+    .error { color: var(--danger); font-size: 12px; line-height: 1.55; white-space: pre-wrap; padding: 26px; max-width: 620px; }
+    .result-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    .history-panel { margin-top: 18px; }
+    .history-list { display: grid; gap: 8px; }
+    .history-empty { border: 1px dashed #465366; border-radius: 8px; color: var(--muted); font-size: 12px; text-align: center; padding: 22px 14px; }
+    .history-item { border: 1px solid var(--border); border-radius: 8px; background: #141a22; overflow: hidden; }
+    .history-item summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 13px; }
+    .history-item summary::-webkit-details-marker { display: none; }
+    .history-item summary::after { content: '+'; color: var(--muted); font-size: 17px; line-height: 1; }
+    .history-item[open] summary::after { content: '\2212'; }
+    .history-summary-main { min-width: 0; display: grid; gap: 4px; }
+    .history-title { font-size: 12px; font-weight: 700; }
+    .history-excerpt { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .history-body { border-top: 1px solid var(--border); padding: 13px; }
+    .history-prompt { color: #d7dee7; font-size: 12px; line-height: 1.55; margin: 0 0 12px; white-space: pre-wrap; word-break: break-word; }
+    .history-media { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .history-media figure { margin: 0; min-width: 0; }
+    .history-media figcaption { color: var(--muted); font-size: 10px; margin-bottom: 5px; }
+    .history-image-wrap { position: relative; }
+    .history-media img { display: block; width: 100%; height: 170px; object-fit: contain; border: 1px solid var(--border); border-radius: 6px; background: #0d1117; }
+    .preview-download { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; padding: 0; border: 1px solid #64738a; border-radius: 6px; color: var(--text); background: #111821d9; cursor: pointer; font-size: 16px; line-height: 1; }
+    .preview-download:hover { border-color: var(--accent); color: var(--accent); }
+    .history-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    .history-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    button.danger { color: var(--danger); }
+    .drop-overlay[hidden] { display: none; }
+    .drop-overlay { position: fixed; inset: 0; z-index: 1050; display: grid; place-items: center; padding: 24px; pointer-events: none; background: #080c12d9; }
+    .drop-target { width: min(520px, calc(100vw - 40px)); min-height: 180px; display: grid; place-items: center; align-content: center; gap: 10px; border: 2px dashed var(--accent); border-radius: 8px; color: var(--text); background: #151c26f2; box-shadow: 0 16px 48px #0008; text-align: center; }
+    .drop-target strong { font-size: 16px; letter-spacing: 0; }
+    .drop-target span { color: var(--muted); font-size: 11px; }
+    .drop-icon { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid #55769e; border-radius: 7px; color: var(--accent); background: #101721; font-size: 27px; line-height: 1; }
+    .lightbox[hidden] { display: none; }
+    .lightbox { position: fixed; inset: 0; z-index: 1000; display: grid; grid-template-rows: minmax(0, 1fr) auto; place-items: center; padding: max(64px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: #05070aeb; }
+    .lightbox-viewport { position: relative; width: 100%; height: 100%; min-height: 0; display: grid; place-items: center; overflow: hidden; cursor: zoom-in; touch-action: none; }
+    .lightbox-viewport.zoomed { cursor: grab; }
+    .lightbox-viewport.dragging { cursor: grabbing; }
+    .lightbox img { position: absolute; left: 50%; top: 50%; display: block; max-width: none; max-height: none; object-fit: contain; border-radius: 6px; box-shadow: 0 12px 48px #000a; user-select: none; transition: transform .14s ease, left .14s ease, top .14s ease; will-change: transform, left, top; }
+    .lightbox-viewport.dragging img { transition: none; }
+    .lightbox-toolbar { position: fixed; z-index: 1; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); display: flex; gap: 6px; }
+    .lightbox-tool { width: 40px; height: 40px; padding: 0; border: 1px solid #637086; border-radius: 7px; color: white; background: #161d27e6; cursor: pointer; font-size: 20px; line-height: 1; }
+    .lightbox-tool:hover { border-color: var(--accent); color: var(--accent); }
+    .lightbox-tool:disabled { border-color: #3b4655; color: #687586; }
+    .lightbox-zoom-value { min-width: 52px; height: 40px; display: grid; place-items: center; border: 1px solid #465468; border-radius: 7px; color: #cbd5e1; background: #111821d9; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .lightbox-fit { width: 48px; font-size: 11px; }
+    .lightbox-caption { max-width: min(760px, 92vw); color: #c7d0db; font-size: 11px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-top: 10px; }
+    .toast[hidden] { display: none; }
+    .toast { position: fixed; z-index: 1100; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: min(520px, calc(100vw - 28px)); padding: 9px 12px; border: 1px solid #7f4b4b; border-radius: 7px; color: #ffd8d8; background: #2a1717f2; font-size: 11px; text-align: center; }
+    .footer-note { color: var(--muted); text-align: center; font-size: 11px; margin: 18px 0 0; }
+    .busy { color: var(--accent); }
+    .ok { color: var(--success); }
+    @media (max-width: 860px) { body { padding: 14px; } header { flex-direction: column; } .lan-slot { align-self: flex-start; } .layout { grid-template-columns: 1fr; } .result-panel { min-height: 430px; } .stage { min-height: 330px; } input, textarea, select { font-size: 16px; } button, input, textarea, select { touch-action: manipulation; } }
+    @media (max-width: 480px) { .panel { padding: 14px; } .params { grid-template-columns: 1fr; } textarea { min-height: 150px; } h1 { font-size: 19px; } .source-gallery, .history-media { grid-template-columns: 1fr; } .source-card img { height: 180px; } .history-media img { height: 210px; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand"><div class="mark">GI</div><div><h1>GPT Image Studio</h1><p class="subtitle">可独立分发的单文件文生图 / 图生图工作台</p></div></div>
+      <div class="lan-slot"><span>LAN</span> 广播入口预留 · 尚未启用</div>
+    </header>
+
+    <div class="layout">
+      <section>
+        <div class="panel quick-actions">
+          <h2 class="panel-title">任务操作</h2>
+          <div class="actions"><button id="runBtn" class="primary" type="button">开始生成</button><button id="resetBtn" class="secondary" type="button">清空输入</button></div>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel-title">任务输入</h2>
+          <div class="mode" role="tablist"><button id="modeGen" class="active" type="button">文生图</button><button id="modeEdit" type="button">图生图</button></div>
+          <div class="field"><label for="prompt">提示词</label><textarea id="prompt" placeholder="描述主体、构图、光线、风格与需要避免的内容..."></textarea></div>
+          <div id="uploadArea" class="upload field" hidden><label for="imageFile">上传参考照片</label><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" multiple /><div class="hint">最多 16 张；可一次选择多张，再次选择会追加，点击缩略图右上角可移除。</div><div id="uploadPreview" class="upload-preview"><div id="sourceGallery" class="source-gallery"></div></div></div>
+        </div>
+
+        <details class="panel">
+          <summary class="panel-title"><span>参数设置</span><small>auto 表示交由模型判断</small></summary>
+          <div class="collapsible-content">
+            <div class="field"><label for="model">模型 model</label><select id="model"><option>gpt-image-2</option><option>gpt-image-2-2k</option><option>gpt-image-2-4k</option><option>gpt-image-2.5-flare</option><option>gpt-image-2.5-sunburst</option></select><div id="modelHint" class="hint" aria-live="polite"></div></div>
+            <div class="params">
+              <div><label for="size">size</label><select id="size"><option value="auto">auto</option><option>1024x1024</option><option>1536x1024</option><option>1024x1536</option><option>2048x2048</option><option>2048x1152</option><option>3840x2160</option><option>2160x3840</option></select></div>
+              <div><label for="quality">quality</label><select id="quality"><option value="auto">auto</option><option>low</option><option>medium</option><option>high</option><option value="xhigh">xhigh</option><option value="max">max</option></select></div>
+              <div><label for="moderation">moderation</label><select id="moderation"><option value="auto">auto</option><option>low</option></select></div>
+              <div><label for="background">background</label><select id="background"><option value="auto">auto</option><option>opaque</option><option value="transparent">transparent</option></select></div>
+              <div><label for="outputFormat">output_format</label><select id="outputFormat"><option value="png">png</option><option value="jpeg">jpeg</option><option value="webp">webp</option></select></div>
+              <div id="compressionField"><label for="outputCompression">output_compression</label><select id="outputCompression"><option value="auto">auto</option><option value="0">0</option><option value="50">50</option><option value="80">80</option><option value="100">100</option></select></div>
+            </div>
+            <label class="option-check" for="removeWatermark"><input id="removeWatermark" type="checkbox" /> 去除水印</label>
+          </div>
+        </details>
+      </section>
+
+      <section class="panel result-panel">
+        <h2 class="panel-title">预览 <small id="modeLabel">文生图</small></h2>
+        <div class="status-line"><span id="statusText">等待任务</span><strong id="timer">00:00.0</strong></div>
+        <div id="stage" class="stage"><div class="empty"><div class="glyph">▧</div><div>生成结果或错误信息会显示在这里</div></div></div>
+        <div class="result-actions"><button id="downloadBtn" class="secondary" type="button" disabled>下载照片</button></div>
+      </section>
+    </div>
+    <section class="panel history-panel">
+      <h2 class="panel-title"><span>历史任务</span><span class="history-heading"><small id="historyNote" aria-live="polite">正在读取历史…</small><button id="clearHistoryBtn" class="secondary danger" type="button" disabled>一键清空</button></span></h2>
+      <p class="hint">历史任务与图片保存在当前浏览器；清除网站数据或使用无痕模式可能导致记录丢失。</p>
+      <div id="historyList" class="history-list"><div class="history-empty">成功生成后，任务会出现在这里。</div></div>
+    </section>
+    <details class="panel connection-panel">
+      <summary class="panel-title"><span>连接设置</span><small>设置保存在当前浏览器</small></summary>
+      <div class="collapsible-content">
+        <div class="field"><label for="apiKey">API Key</label><div class="input-row"><input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" /><label class="check"><input id="saveKey" type="checkbox" /> 保存 Key</label></div><div class="hint">仅在勾选“保存 Key”时写入当前浏览器的本地存储。请勿在共享设备上勾选。</div></div>
+        <div class="field"><label for="baseUrl">自定义 API 地址</label><input id="baseUrl" type="url" placeholder="https://api.openai.com/v1" /></div>
+        <div class="notice">此单文件会从浏览器直接请求所填 API 地址。服务端必须允许浏览器跨域访问；若返回图片 URL，该地址也需要允许跨域读取才能下载并处理图片。</div>
+      </div>
+    </details>
+    <p class="footer-note">提示：API 返回 URL 或 base64 图片均可预览；浏览器直连和 URL 图片下载受服务端 CORS 策略限制。</p>
+  </main>
+
+  <div id="dropOverlay" class="drop-overlay" role="status" aria-live="polite" hidden><div class="drop-target"><div class="drop-icon">+</div><strong>松开以添加参考图</strong><span>PNG、JPEG、WebP · 最多 16 张</span></div></div>
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="图片大图预览" hidden>
+    <div class="lightbox-toolbar"><button id="lightboxZoomOut" class="lightbox-tool" type="button" title="缩小图片" aria-label="缩小图片">−</button><span id="lightboxZoomValue" class="lightbox-zoom-value" aria-live="polite">100%</span><button id="lightboxZoomIn" class="lightbox-tool" type="button" title="放大图片" aria-label="放大图片">+</button><button id="lightboxZoomReset" class="lightbox-tool lightbox-fit" type="button" title="让图片完整适应当前窗口" aria-label="让图片完整适应当前窗口">适应</button><button id="lightboxDownload" class="lightbox-tool" type="button" title="下载图片" aria-label="下载图片">↓</button><button id="lightboxClose" class="lightbox-tool" type="button" title="关闭预览" aria-label="关闭预览">×</button></div>
+    <div id="lightboxViewport" class="lightbox-viewport"><img id="lightboxImage" alt="大图预览" draggable="false" /></div>
+    <div id="lightboxCaption" class="lightbox-caption"></div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fields = ['apiKey','baseUrl','model','prompt','size','quality','moderation','background','outputFormat','outputCompression','removeWatermark','saveKey'];
+    const defaults = { model: 'gpt-image-2', baseUrl: 'https://api.openai.com/v1', size: 'auto', quality: 'auto', moderation: 'auto', background: 'auto', outputFormat: 'png', outputCompression: 'auto' };
+    const MAX_SOURCE_IMAGES = 16;
+    const ACCEPTED_SOURCE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    const MIN_LIGHTBOX_ZOOM = 0.01, MAX_LIGHTBOX_ZOOM = 8;
+    let mode = 'generation', sourceFiles = [], sourceUrls = [], outputUrl = '', outputBlob = null, currentOutputName = '', currentOutputPrompt = '', timerId = null, startedAt = 0, controller = null, toastTimer = null, dragDepth = 0;
+    const historyTasks = [];
+    let historyDbPromise = null, historyQueue = Promise.resolve(), historyReady = false, historyStorageError = false;
+    function openHistoryDb() {
+      if (historyDbPromise) return historyDbPromise;
+      historyDbPromise = new Promise((resolve, reject) => {
+        if (!window.indexedDB) return reject(new Error('当前浏览器不支持历史缓存。'));
+        const request = indexedDB.open('gpt-image-studio-history', 1);
+        let expired = false;
+        const timeout = setTimeout(() => { expired = true; reject(new Error('历史缓存打开超时，请关闭其他页面后重试。')); }, 5000);
+        request.onupgradeneeded = () => {
+          if (!request.result.objectStoreNames.contains('tasks')) request.result.createObjectStore('tasks', { keyPath: 'id' });
+        };
+        request.onsuccess = () => {
+          clearTimeout(timeout);
+          const db = request.result;
+          if (expired) { db.close(); return; }
+          db.onversionchange = () => { db.close(); historyDbPromise = null; };
+          resolve(db);
+        };
+        request.onerror = () => { clearTimeout(timeout); reject(request.error || new Error('无法打开历史缓存。')); };
+      }).catch((error) => { historyDbPromise = null; throw error; });
+      return historyDbPromise;
+    }
+    async function historyStoreAction(action, value) {
+      const db = await openHistoryDb();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction('tasks', action === 'getAll' ? 'readonly' : 'readwrite');
+        const store = transaction.objectStore('tasks');
+        const request = value === undefined ? store[action]() : store[action](value);
+        transaction.oncomplete = () => resolve(request.result);
+        transaction.onerror = transaction.onabort = () => reject(transaction.error || request.error || new Error('历史缓存操作失败。'));
+      });
+    }
+    function queueHistoryAction(action) {
+      const result = historyQueue.then(action);
+      historyQueue = result.catch(() => {});
+      return result;
+    }
+    function historyRecord(task) {
+      // Store image bytes and metadata, never temporary object URLs or API credentials.
+      const { sourcePreviewUrls, outputPreviewUrl, cached, ...record } = task;
+      return record;
+    }
+    function hydrateHistoryTask(record) {
+      const sourceFiles = Array.from(record.sourceFiles || []);
+      return { ...record, sourceFiles, cached: true,
+        sourcePreviewUrls: sourceFiles.map((file) => URL.createObjectURL(file)),
+        outputPreviewUrl: record.outputBlob ? URL.createObjectURL(record.outputBlob) : record.outputRemoteUrl || '' };
+    }
+    function releaseHistoryTask(task) {
+      if (task.sourcePreviewUrls.includes(lightboxState.src) || task.outputPreviewUrl === lightboxState.src) closeLightbox();
+      task.sourcePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+      if (task.outputPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(task.outputPreviewUrl);
+    }
+    async function loadHistory() {
+      try {
+        const records = await historyStoreAction('getAll');
+        records.sort((a, b) => a.createdAt - b.createdAt);
+        records.forEach((record) => historyTasks.push(hydrateHistoryTask(record)));
+        historyStorageError = false;
+      } catch (_) {
+        historyStorageError = true;
+        showToast('无法读取历史缓存，请检查浏览器存储权限；新任务仍可生成。');
+      } finally { historyReady = true; renderHistory(); }
+    }
+    async function deleteHistoryTask(id) {
+      return queueHistoryAction(async () => {
+        const index = historyTasks.findIndex((task) => task.id === id);
+        if (index < 0) return;
+        const task = historyTasks[index];
+        try {
+          if (task.cached) await historyStoreAction('delete', id);
+          historyTasks.splice(index, 1); releaseHistoryTask(task); renderHistory();
+        } catch (_) { showToast('删除失败，记录仍保留，请重试。'); }
+      });
+    }
+    async function clearHistory() {
+      return queueHistoryAction(async () => {
+        try {
+          // Clear the store itself, including records written by another open page.
+          await historyStoreAction('clear');
+          historyTasks.forEach(releaseHistoryTask); historyTasks.length = 0;
+          historyStorageError = false; renderHistory();
+        } catch (_) { showToast('清空失败，历史记录仍保留，请检查浏览器存储权限。'); }
+      });
+    }
+    const lightboxState = { src: '', filename: '', blob: null, metadataPrompt: '' };
+    const lightboxView = { zoom: 1, panX: 0, panY: 0, fitMode: true, dragging: false, moved: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 };
+
+    async function loadState() {
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem('gpt-image-studio') || '{}'); } catch (_) {}
+      fields.forEach((id) => { const el = $(id); if (!el) return; if (id === 'apiKey' && !saved.saveKey) return; if (saved[id] !== undefined) el.type === 'checkbox' ? el.checked = !!saved[id] : el.value = saved[id]; });
+      Object.entries(defaults).forEach(([id, value]) => { if (!$(id).value) $(id).value = value; });
+      setMode(saved.mode === 'edit' ? 'edit' : 'generation', false);
+    }
+    function collectPersistedState() {
+      const state = { mode }; fields.forEach((id) => { const el = $(id); state[id] = el.type === 'checkbox' ? el.checked : (id === 'apiKey' && !$('saveKey').checked ? '' : el.value); });
+      return state;
+    }
+    window.collectPersistedState = collectPersistedState;
+    function saveState() {
+      const state = collectPersistedState();
+      try { localStorage.setItem('gpt-image-studio', JSON.stringify(state)); } catch (_) {}
+    }
+    function setMode(next, persist = true) {
+      mode = next === 'edit' ? 'edit' : 'generation'; const edit = mode === 'edit'; $('modeGen').classList.toggle('active', !edit); $('modeEdit').classList.toggle('active', edit); $('uploadArea').hidden = !edit; $('modeLabel').textContent = edit ? '图生图' : '文生图'; if (persist) saveState();
+    }
+    function formatTime(ms) { const s = ms / 1000; return `${String(Math.floor(s / 60)).padStart(2,'0')}:${String(Math.floor(s % 60)).padStart(2,'0')}.${Math.floor(ms % 1000 / 100)}`; }
+    function beginTimer() { startedAt = performance.now(); $('timer').textContent = '00:00.0'; timerId = setInterval(() => $('timer').textContent = formatTime(performance.now() - startedAt), 100); }
+    function endTimer() { if (timerId) clearInterval(timerId); timerId = null; $('timer').textContent = formatTime(performance.now() - startedAt); }
+    function generatedImageName(timestamp = Date.now(), format = 'png') { const date = new Date(timestamp); const pad = (value) => String(value).padStart(2, '0'); return `gpt-image_${String(date.getFullYear()).slice(-2)}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}.${format}`; }
+    function extensionForMime(mime, fallbackName = '') { if (mime === 'image/jpeg') return 'jpeg'; if (mime === 'image/webp') return 'webp'; if (mime === 'image/png') return 'png'; const match = fallbackName.match(/\.([a-z0-9]{2,5})(?:[?#].*)?$/i); return match ? match[1].toLowerCase().replace('jpg', 'jpeg') : 'png'; }
+    function showToast(message) { clearTimeout(toastTimer); $('toast').textContent = message; $('toast').hidden = false; toastTimer = setTimeout(() => { $('toast').hidden = true; }, 5000); }
+    function onImageDimensions(image, callback) { const report = () => { if (image.naturalWidth && image.naturalHeight) callback(`${image.naturalWidth} × ${image.naturalHeight} px`); }; if (image.complete) queueMicrotask(report); else image.addEventListener('load', report, { once: true }); }
+    function authorizationForImage(src) { try { if (new URL(src, location.href).origin === new URL(normalizeBase($('baseUrl').value)).origin && $('apiKey').value.trim()) return `Bearer ${$('apiKey').value.trim()}`; } catch (_) {} return ''; }
+    async function downloadImage(src, filename, blobHint = null, metadataPrompt = '') {
+      if (!src && !blobHint) return;
+      try {
+        let blob = blobHint;
+        if (!blob) { const options = {}; const authorization = authorizationForImage(src); if (authorization) options.headers = { Authorization: authorization }; const response = await fetch(src, options); if (!response.ok) throw new Error(`HTTP ${response.status}`); blob = await response.blob(); }
+        if (!blob?.size) throw new Error('图片数据为空');
+        const downloadName = generatedImageName(Date.now(), extensionForMime(blob.type, filename || src)); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = downloadName; link.style.display = 'none'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+      }
+      catch (error) { showToast(`下载失败：${error?.message || String(error)}`); }
+    }
+    function resolveMetadataPrompt(value) { return typeof value === 'function' ? value() : (value || ''); }
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function lightboxCanPan() { const image = $('lightboxImage'), viewport = $('lightboxViewport'); return image.clientWidth * lightboxView.zoom > viewport.clientWidth + 1 || image.clientHeight * lightboxView.zoom > viewport.clientHeight + 1; }
+    function clampLightboxPan() { const image = $('lightboxImage'), viewport = $('lightboxViewport'); const maxX = Math.max(0, (image.clientWidth * lightboxView.zoom - viewport.clientWidth) / 2); const maxY = Math.max(0, (image.clientHeight * lightboxView.zoom - viewport.clientHeight) / 2); lightboxView.panX = clamp(lightboxView.panX, -maxX, maxX); lightboxView.panY = clamp(lightboxView.panY, -maxY, maxY); }
+    function formatLightboxZoom() { const percent = lightboxView.zoom * 100; return `${percent < 10 ? percent.toFixed(2) : percent < 100 ? percent.toFixed(1) : Math.round(percent)}%`; }
+    function renderLightboxView() { clampLightboxPan(); const viewport = $('lightboxViewport'), image = $('lightboxImage'); image.style.left = `calc(50% + ${lightboxView.panX}px)`; image.style.top = `calc(50% + ${lightboxView.panY}px)`; image.style.transform = `translate(-50%, -50%) scale(${lightboxView.zoom})`; viewport.classList.toggle('zoomed', lightboxCanPan()); viewport.classList.toggle('dragging', lightboxView.dragging); $('lightboxZoomValue').textContent = formatLightboxZoom(); $('lightboxZoomOut').disabled = lightboxView.zoom <= MIN_LIGHTBOX_ZOOM * 1.001; $('lightboxZoomIn').disabled = lightboxView.zoom >= MAX_LIGHTBOX_ZOOM / 1.001; }
+    function calculateLightboxFitZoom() { const image = $('lightboxImage'), viewport = $('lightboxViewport'); if (!image.naturalWidth || !image.naturalHeight || !viewport.clientWidth || !viewport.clientHeight) return 1; return clamp(Math.min((viewport.clientWidth - 2) / image.naturalWidth, (viewport.clientHeight - 2) / image.naturalHeight, 1), MIN_LIGHTBOX_ZOOM, MAX_LIGHTBOX_ZOOM); }
+    function fitLightboxToWindow() { lightboxView.zoom = calculateLightboxFitZoom(); lightboxView.panX = 0; lightboxView.panY = 0; lightboxView.fitMode = true; lightboxView.dragging = false; lightboxView.moved = false; renderLightboxView(); }
+    function setLightboxZoom(nextZoom, clientX = null, clientY = null) { if ($('lightbox').hidden) return; const oldZoom = lightboxView.zoom; const next = clamp(nextZoom, MIN_LIGHTBOX_ZOOM, MAX_LIGHTBOX_ZOOM); const rect = $('lightboxViewport').getBoundingClientRect(); const pointerX = Number.isFinite(clientX) ? clientX - rect.left - rect.width / 2 : 0; const pointerY = Number.isFinite(clientY) ? clientY - rect.top - rect.height / 2 : 0; const ratio = next / oldZoom; lightboxView.panX = pointerX - ratio * (pointerX - lightboxView.panX); lightboxView.panY = pointerY - ratio * (pointerY - lightboxView.panY); lightboxView.zoom = next; lightboxView.fitMode = false; renderLightboxView(); }
+    function openLightbox(src, caption, filename, blob = null, metadataPrompt = '') { if (!src) return; const text = caption || filename || ''; const image = $('lightboxImage'); lightboxState.src = src; lightboxState.filename = filename || 'image'; lightboxState.blob = blob; lightboxState.metadataPrompt = resolveMetadataPrompt(metadataPrompt); image.style.width = ''; image.style.height = ''; $('lightbox').hidden = false; fitLightboxToWindow(); image.onload = () => { image.style.width = `${image.naturalWidth}px`; image.style.height = `${image.naturalHeight}px`; fitLightboxToWindow(); $('lightboxCaption').textContent = `${text} · ${image.naturalWidth} × ${image.naturalHeight} px`; }; image.src = src; image.alt = caption || '大图预览'; $('lightboxCaption').textContent = text; document.body.style.overflow = 'hidden'; $('lightboxClose').focus(); }
+    function closeLightbox() { if ($('lightbox').hidden) return; fitLightboxToWindow(); $('lightbox').hidden = true; $('lightboxImage').removeAttribute('src'); document.body.style.overflow = ''; lightboxState.src = ''; lightboxState.filename = ''; lightboxState.blob = null; lightboxState.metadataPrompt = ''; }
+    function makePreviewable(image, caption, filename, blob = null, metadataPrompt = '') { image.classList.add('previewable'); image.tabIndex = 0; image.setAttribute('role', 'button'); image.title = '单击查看大图'; image.onclick = () => openLightbox(image.src, caption, filename, blob, metadataPrompt); image.onkeydown = (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openLightbox(image.src, caption, filename, blob, metadataPrompt); } }; }
+    function showEmpty() { $('stage').innerHTML = '<div class="empty"><div class="glyph">▧</div><div>生成结果或错误信息会显示在这里</div></div>'; }
+    function showError(message) { $('stage').innerHTML = ''; const el = document.createElement('div'); el.className = 'error'; el.textContent = message; $('stage').appendChild(el); }
+    function setImage(src, filename, blob = null, watermarkRemoved = false, metadataPrompt = '') { $('stage').innerHTML = ''; const img = document.createElement('img'); const resolution = document.createElement('span'); const resultLabel = watermarkRemoved ? '生成结果 · 图片已去除水印' : '生成结果'; resolution.className = 'stage-resolution'; resolution.textContent = '读取分辨率…'; img.alt = resultLabel; img.src = src; makePreviewable(img, resultLabel, filename, blob, metadataPrompt); onImageDimensions(img, (value) => { resolution.textContent = value; }); $('stage').append(img, resolution); if (watermarkRemoved) { const flag = document.createElement('span'); flag.className = 'result-flag'; flag.textContent = '图片已去除水印'; $('stage').appendChild(flag); } }
+    function renderSourceFiles() {
+      const gallery = $('sourceGallery'); gallery.innerHTML = '';
+      sourceFiles.forEach((file, index) => {
+        const card = document.createElement('div'); card.className = 'source-card';
+        const image = document.createElement('img'); image.alt = `参考图 ${index + 1}`; image.src = sourceUrls[index]; makePreviewable(image, `参考图 ${index + 1} · ${file.name}`, file.name, file, () => buildRequestPrompt($('prompt').value, $('removeWatermark').checked));
+        const meta = document.createElement('span'); const fileSizeText = `${(file.size / 1024 / 1024).toFixed(2)} MB`; meta.className = 'file-meta'; meta.textContent = `${index + 1}. 读取分辨率… · ${file.name}`; onImageDimensions(image, (value) => { meta.textContent = `${index + 1}. ${value} · ${file.name} · ${fileSizeText}`; });
+        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'source-remove'; remove.textContent = '×'; remove.title = `移除参考图 ${index + 1}`; remove.setAttribute('aria-label', remove.title); remove.onclick = () => setSourceFiles(sourceFiles.filter((_, fileIndex) => fileIndex !== index));
+        card.append(image, meta, remove); gallery.appendChild(card);
+      });
+      $('uploadPreview').classList.toggle('show', sourceFiles.length > 0);
+    }
+    function setSourceFiles(files) {
+      if (sourceUrls.includes(lightboxState.src)) closeLightbox();
+      sourceUrls.forEach((url) => URL.revokeObjectURL(url));
+      sourceFiles = Array.from(files || []).slice(0, MAX_SOURCE_IMAGES); sourceUrls = sourceFiles.map((file) => URL.createObjectURL(file)); $('imageFile').value = ''; renderSourceFiles();
+    }
+    function appendSourceFiles(files) {
+      const merged = [...sourceFiles]; const signatures = new Set(merged.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+      let added = 0; Array.from(files || []).forEach((file) => { const signature = `${file.name}:${file.size}:${file.lastModified}`; if (!signatures.has(signature) && merged.length < MAX_SOURCE_IMAGES) { signatures.add(signature); merged.push(file); added += 1; } }); setSourceFiles(merged); return added;
+    }
+    function isFileDrag(event) { return Array.from(event.dataTransfer?.types || []).includes('Files'); }
+    function hideDropOverlay() { dragDepth = 0; $('dropOverlay').hidden = true; }
+    function handleDragEnter(event) { if (!isFileDrag(event)) return; event.preventDefault(); dragDepth += 1; $('dropOverlay').hidden = false; }
+    function handleDragOver(event) { if (!isFileDrag(event)) return; event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }
+    function handleDragLeave(event) { if (!isFileDrag(event)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('dropOverlay').hidden = true; }
+    function handleDrop(event) {
+      if (!isFileDrag(event)) return;
+      event.preventDefault(); hideDropOverlay();
+      const dropped = Array.from(event.dataTransfer?.files || []); const accepted = dropped.filter((file) => ACCEPTED_SOURCE_TYPES.has(file.type)); const rejectedCount = dropped.length - accepted.length;
+      if (!accepted.length) { showToast('未添加文件：只支持 PNG、JPEG 或 WebP 图片。'); return; }
+      const added = appendSourceFiles(accepted); setMode('edit');
+      if (rejectedCount) showToast(`已添加 ${added} 张参考图，另有 ${rejectedCount} 个非支持文件已忽略。`);
+      else if (added < accepted.length) showToast(`已添加 ${added} 张参考图；重复图片或超过 16 张的部分已忽略。`);
+      else showToast(`已添加 ${added} 张参考图。`);
+    }
+    function appendHistoryFigure(container, label, src, filename, blob = null, metadataPrompt = '') {
+      if (!src) return;
+      const figure = document.createElement('figure'); const caption = document.createElement('figcaption'); caption.textContent = label;
+      const wrap = document.createElement('div'); wrap.className = 'history-image-wrap'; const image = document.createElement('img'); image.alt = label; image.src = src; makePreviewable(image, filename ? `${label} · ${filename}` : label, filename, blob, metadataPrompt);
+      onImageDimensions(image, (value) => { caption.textContent = `${label} · ${value}`; });
+      const downloadButton = document.createElement('button'); downloadButton.type = 'button'; downloadButton.className = 'preview-download'; downloadButton.textContent = '↓'; downloadButton.title = `下载${label}`; downloadButton.setAttribute('aria-label', downloadButton.title); downloadButton.onclick = (event) => { event.preventDefault(); event.stopPropagation(); downloadImage(src, filename, blob, metadataPrompt); };
+      wrap.append(image, downloadButton); figure.append(caption, wrap); container.appendChild(figure);
+    }
+    function renderHistory() {
+      const list = $('historyList'); list.innerHTML = ''; const uncached = historyTasks.filter((task) => !task.cached).length; $('historyNote').textContent = !historyReady ? '正在读取历史…' : `${historyStorageError ? '缓存不可用' : '浏览器缓存'} · ${historyTasks.length} 条${uncached ? ` · ${uncached} 条未缓存` : ''}`; $('clearHistoryBtn').disabled = !historyReady || !historyTasks.length;
+      if (!historyTasks.length) { const empty = document.createElement('div'); empty.className = 'history-empty'; empty.textContent = '成功生成后，任务会出现在这里。'; list.appendChild(empty); return; }
+      historyTasks.slice().reverse().forEach((task, reverseIndex) => {
+        const index = historyTasks.length - 1 - reverseIndex; const item = document.createElement('details'); item.className = 'history-item';
+        const summary = document.createElement('summary'); const main = document.createElement('div'); main.className = 'history-summary-main';
+        const title = document.createElement('div'); title.className = 'history-title'; title.textContent = `${task.mode === 'edit' ? '图生图' : '文生图'} · ${task.model || defaults.model}`;
+        const excerpt = document.createElement('div'); excerpt.className = 'history-excerpt'; excerpt.textContent = task.prompt.replace(/\s+/g, ' ').trim() || '（无提示词）';
+        const time = document.createElement('time'); time.className = 'history-time'; time.textContent = new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false });
+        main.append(title, excerpt); summary.append(main, time);
+        const body = document.createElement('div'); body.className = 'history-body'; const prompt = document.createElement('p'); prompt.className = 'history-prompt'; prompt.textContent = task.prompt || '（无提示词）';
+        const media = document.createElement('div'); const outputLabel = (task.removeWatermark ? '生成结果 · 图片已去除水印' : '生成结果') + (task.outputRemoteUrl && !task.outputBlob ? ' · 仅链接，可能过期' : '') + (!task.cached ? ' · 未缓存' : ''); media.className = 'history-media'; task.sourcePreviewUrls.forEach((url, sourceIndex) => appendHistoryFigure(media, `参考图 ${sourceIndex + 1}`, url, task.sourceFiles[sourceIndex]?.name, task.sourceFiles[sourceIndex], task.requestPrompt)); appendHistoryFigure(media, outputLabel, task.outputPreviewUrl, task.outputName, task.outputBlob, task.requestPrompt);
+        const actions = document.createElement('div'); actions.className = 'history-actions'; const reuse = document.createElement('button'); reuse.type = 'button'; reuse.className = 'secondary'; reuse.textContent = '复用';
+        reuse.onclick = (event) => { event.preventDefault(); event.stopPropagation(); reuseHistory(historyTasks.findIndex((entry) => entry.id === task.id)); }; const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'secondary danger'; remove.textContent = '删除'; remove.onclick = async (event) => { event.preventDefault(); event.stopPropagation(); remove.disabled = true; await deleteHistoryTask(task.id); remove.disabled = false; }; actions.append(reuse, remove); body.append(prompt, media, actions); item.append(summary, body); list.appendChild(item);
+      });
+    }
+    function addHistoryTask(task) {
+      const snapshot = { ...task, sourceFiles: Array.from(task.sourceFiles || []), outputBlob, outputRemoteUrl: outputBlob ? '' : outputUrl };
+      return queueHistoryAction(async () => {
+        if (!snapshot.outputBlob && snapshot.outputRemoteUrl) {
+          const imageController = new AbortController();
+          const timeout = setTimeout(() => imageController.abort(), 15000);
+          try {
+            const response = await fetch(snapshot.outputRemoteUrl, { signal: imageController.signal });
+            if (!response.ok) throw new Error('图片下载失败');
+            const blob = await response.blob();
+            if (!blob.size || !blob.type.startsWith('image/')) throw new Error('无效的图片响应');
+            snapshot.outputBlob = blob; snapshot.outputRemoteUrl = '';
+          } catch (_) { showToast('图片链接无法下载到缓存；已保留任务和链接，但链接可能过期。'); }
+          finally { clearTimeout(timeout); }
+        }
+        const record = { id: window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          createdAt: snapshot.createdAt || Date.now(), model: snapshot.model || defaults.model,
+          mode: snapshot.mode, prompt: snapshot.prompt, requestPrompt: snapshot.requestPrompt || snapshot.prompt,
+          removeWatermark: !!snapshot.removeWatermark, sourceFiles: snapshot.sourceFiles,
+          outputName: snapshot.outputName, outputBlob: snapshot.outputBlob || null, outputRemoteUrl: snapshot.outputRemoteUrl };
+        const entry = hydrateHistoryTask(record); entry.cached = false;
+        historyTasks.push(entry);
+        try {
+          await historyStoreAction('put', historyRecord(entry));
+          entry.cached = true; historyStorageError = false;
+        } catch (_) {
+          historyStorageError = true;
+          showToast('生成已完成，但历史缓存写入失败（可能空间不足）；本条仅当前页面可用，请先下载图片。');
+        }
+        renderHistory();
+      });
+    }
+    function reuseHistory(index) {
+      const task = historyTasks[index]; if (!task) return; $('model').value = task.model || defaults.model; syncModelFields(); $('prompt').value = task.prompt; $('removeWatermark').checked = !!task.removeWatermark; setMode(task.mode); setSourceFiles(task.sourceFiles); saveState(); $('prompt').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('prompt').focus();
+    }
+    function normalizeBase(url) { return (url || defaults.baseUrl).trim().replace(/\/+$/, ''); }
+    function endpoint(path) { const base = normalizeBase($('baseUrl').value), clean = path.replace(/^\/+/, ''); return /\/images$/.test(base) ? `${base}/${clean.split('/').pop()}` : `${base}/${clean}`; }
+    function requestEndpoint(path) { return endpoint(path); }
+    function addIfSet(target, key, value) { if (value && value !== 'auto') target[key] = value; }
+    function buildRequestPrompt(prompt, removeWatermark) { const text = prompt.trim(); if (!removeWatermark) return text; const completeSentence = /[。.！!?？][”’"'）)\]]?$/.test(text); return `${completeSentence ? text : `${text}。`}去除图片中的水印。`; }
+    function optionsObject(requestPrompt) { const o = { model: $('model').value, prompt: requestPrompt }; addIfSet(o, 'size', $('size').value); addIfSet(o, 'quality', $('quality').value); addIfSet(o, 'moderation', $('moderation').value); addIfSet(o, 'background', $('background').value); addIfSet(o, 'output_format', $('outputFormat').value); if ($('outputFormat').value !== 'png' && $('outputCompression').value !== 'auto') o.output_compression = Number($('outputCompression').value); return o; }
+    // OpenAI Image generation guide, checked 2026-09-09:
+    // https://developers.openai.com/api/docs/guides/image-generation
+    // Provider aliases are sent verbatim; their provider-specific limits are not inferred.
+    function isImage25() { return ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'].includes($('model').value); }
+    function setAllowedOptions(id, values) {
+      const select = $(id);
+      // Rebuild options: hiding individual <option> elements is unreliable on iOS.
+      const previous = select.value;
+      select.replaceChildren(...values.map((value) => new Option(value, value)));
+      select.value = values.includes(previous) ? previous : values[0];
+    }
+    function syncModelFields() {
+      if (!Array.from($('model').options).some((option) => option.value === $('model').value)) $('model').value = defaults.model;
+      const image25 = isImage25();
+      setAllowedOptions('quality', image25 ? ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] : ['auto', 'low', 'medium', 'high']);
+      setAllowedOptions('background', image25 ? ['auto', 'opaque', 'transparent'] : ['auto', 'opaque']);
+      $('modelHint').textContent = image25
+        ? '2.5 支持 xhigh / max 质量和透明背景。超过 2560×1440 像素总量的尺寸属实验性支持。'
+        : /-(2k|4k)$/.test($('model').value)
+          ? '按所选名称调用；此别名的分辨率与参数限制以你的 API 服务商说明为准。'
+          : 'GPT Image 2：质量最高为 high，不提供透明背景选项。';
+      syncOutputFields();
+    }
+    function syncOutputFields() {
+      const transparent = isImage25() && $('background').value === 'transparent';
+      const wasJpeg = $('outputFormat').value === 'jpeg';
+      setAllowedOptions('outputFormat', transparent ? ['png', 'webp'] : ['png', 'jpeg', 'webp']);
+      if (transparent && wasJpeg) showToast('透明背景需要 PNG 或 WebP，已切换为 PNG。');
+      syncCompressionField();
+    }
+    function syncCompressionField() {
+      const disabled = $('outputFormat').value === 'png';
+      $('outputCompression').disabled = disabled;
+      $('compressionField').hidden = disabled;
+    }
+    async function parseResponse(response, outputFormat) { let data; try { data = await response.json(); } catch (_) { throw new Error(`HTTP ${response.status}: ${response.statusText}`); } if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`); const item = data?.data?.[0] || data?.output?.[0] || data; if (item?.b64_json) { const mime = outputFormat === 'jpeg' ? 'image/jpeg' : outputFormat === 'webp' ? 'image/webp' : 'image/png'; const bin = atob(item.b64_json); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); outputBlob = new Blob([bytes], { type: mime }); outputUrl = URL.createObjectURL(outputBlob); return outputUrl; } if (item?.url) { outputBlob = null; outputUrl = item.url; return outputUrl; } throw new Error('响应中未找到图片数据。'); }
+    async function run() {
+      const key = $('apiKey').value.trim(), prompt = $('prompt').value.trim(); if (!key) return showError('请先填写 API Key。'); if (!prompt) return showError('请先填写提示词。'); if (mode === 'edit' && !sourceFiles.length) return showError('图生图模式需要先上传至少一张图片。');
+      syncModelFields();
+      const taskMode = mode, taskPrompt = prompt, taskSourceFiles = sourceFiles.slice(), taskOutputFormat = $('outputFormat').value, taskRemoveWatermark = $('removeWatermark').checked;
+      const requestPrompt = buildRequestPrompt(taskPrompt, taskRemoveWatermark); const requestOptions = optionsObject(requestPrompt);
+      if (lightboxState.src === outputUrl) closeLightbox(); if (outputUrl && outputBlob) URL.revokeObjectURL(outputUrl); outputUrl = ''; outputBlob = null; currentOutputName = ''; currentOutputPrompt = '';
+      saveState(); $('runBtn').disabled = true; $('downloadBtn').disabled = true; $('statusText').className = 'busy'; $('statusText').textContent = '请求进行中'; showEmpty(); beginTimer(); controller = new AbortController();
+      try {
+        let response;
+        if (taskMode === 'edit') { const form = new FormData(); Object.entries(requestOptions).forEach(([k,v]) => form.append(k, v)); taskSourceFiles.forEach((file) => form.append('image[]', file, file.name)); response = await fetch(requestEndpoint('/images/edits'), { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form, signal: controller.signal }); }
+        else { response = await fetch(requestEndpoint('/images/generations'), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(requestOptions), signal: controller.signal }); }
+        const src = await parseResponse(response, taskOutputFormat); const createdAt = Date.now(); currentOutputName = generatedImageName(createdAt, taskOutputFormat); currentOutputPrompt = requestPrompt; setImage(src, currentOutputName, outputBlob, taskRemoveWatermark, requestPrompt); await addHistoryTask({ model: requestOptions.model, mode: taskMode, prompt: taskPrompt, requestPrompt, removeWatermark: taskRemoveWatermark, sourceFiles: taskSourceFiles, createdAt, outputName: currentOutputName }); $('statusText').className = 'ok'; $('statusText').textContent = '已完成'; $('downloadBtn').disabled = false;
+      } catch (err) { showError(err.name === 'AbortError' ? '任务已取消。' : (err.message || String(err))); $('statusText').className = ''; $('statusText').textContent = err.name === 'AbortError' ? '已取消' : '请求失败'; }
+      finally { endTimer(); $('runBtn').disabled = false; controller = null; }
+    }
+    async function download() { if (outputUrl) await downloadImage(outputUrl, currentOutputName, outputBlob, currentOutputPrompt); }
+    $('clearHistoryBtn').onclick = async () => { $('clearHistoryBtn').disabled = true; await clearHistory(); renderHistory(); };
+    $('modeGen').onclick = () => setMode('generation'); $('modeEdit').onclick = () => setMode('edit'); $('runBtn').onclick = run; $('downloadBtn').onclick = download;
+    $('resetBtn').onclick = () => { $('prompt').value = ''; setSourceFiles([]); if (lightboxState.src === outputUrl) closeLightbox(); if (outputUrl && outputBlob) URL.revokeObjectURL(outputUrl); outputUrl = ''; outputBlob = null; currentOutputName = ''; currentOutputPrompt = ''; $('downloadBtn').disabled = true; showEmpty(); $('statusText').textContent = '等待任务'; $('statusText').className = ''; saveState(); };
+    $('imageFile').onchange = (e) => { const files = e.target.files; if (files?.length) appendSourceFiles(files); };
+    document.addEventListener('dragenter', handleDragEnter);
+    document.addEventListener('dragover', handleDragOver);
+    document.addEventListener('dragleave', handleDragLeave);
+    document.addEventListener('drop', handleDrop);
+    document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
+    window.addEventListener('blur', hideDropOverlay);
+    $('model').addEventListener('change', () => { syncModelFields(); saveState(); });
+    $('background').addEventListener('change', () => { syncOutputFields(); saveState(); });
+    $('outputFormat').addEventListener('change', () => { syncCompressionField(); saveState(); });
+    $('lightboxClose').onclick = closeLightbox;
+    $('lightboxZoomOut').onclick = () => setLightboxZoom(lightboxView.zoom / 1.1);
+    $('lightboxZoomReset').onclick = fitLightboxToWindow;
+    $('lightboxZoomIn').onclick = () => setLightboxZoom(lightboxView.zoom * 1.1);
+    $('lightboxDownload').onclick = () => downloadImage(lightboxState.src, lightboxState.filename, lightboxState.blob, lightboxState.metadataPrompt);
+    $('lightboxImage').onclick = (event) => { if (lightboxView.moved) return; const fitZoom = calculateLightboxFitZoom(); if (lightboxView.fitMode || Math.abs(lightboxView.zoom - fitZoom) < 0.001) setLightboxZoom(Math.max(1, fitZoom * 2), event.clientX, event.clientY); else fitLightboxToWindow(); };
+    $('lightboxViewport').addEventListener('wheel', (event) => { event.preventDefault(); const pixelDelta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * $('lightboxViewport').clientHeight : event.deltaY; setLightboxZoom(lightboxView.zoom * Math.exp(-pixelDelta * 0.0015), event.clientX, event.clientY); }, { passive: false });
+    $('lightboxViewport').onpointerdown = (event) => { if (event.button !== 0 || !lightboxCanPan()) return; lightboxView.dragging = true; lightboxView.moved = false; lightboxView.startX = event.clientX; lightboxView.startY = event.clientY; lightboxView.startPanX = lightboxView.panX; lightboxView.startPanY = lightboxView.panY; $('lightboxViewport').setPointerCapture(event.pointerId); renderLightboxView(); };
+    $('lightboxViewport').onpointermove = (event) => { if (!lightboxView.dragging) return; const deltaX = event.clientX - lightboxView.startX, deltaY = event.clientY - lightboxView.startY; if (Math.abs(deltaX) + Math.abs(deltaY) > 3) lightboxView.moved = true; lightboxView.panX = lightboxView.startPanX + deltaX; lightboxView.panY = lightboxView.startPanY + deltaY; renderLightboxView(); event.preventDefault(); };
+    function endLightboxPan(event) { if (!lightboxView.dragging) return; lightboxView.dragging = false; if ($('lightboxViewport').hasPointerCapture(event.pointerId)) $('lightboxViewport').releasePointerCapture(event.pointerId); renderLightboxView(); if (lightboxView.moved) setTimeout(() => { lightboxView.moved = false; }, 0); }
+    $('lightboxViewport').onpointerup = endLightboxPan;
+    $('lightboxViewport').onpointercancel = endLightboxPan;
+    $('lightbox').onclick = (event) => { if (event.target === $('lightbox')) closeLightbox(); };
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeLightbox(); if ($('lightbox').hidden) return; if (event.key === '+' || event.key === '=') setLightboxZoom(lightboxView.zoom * 1.1); if (event.key === '-') setLightboxZoom(lightboxView.zoom / 1.1); if (event.key === '0') fitLightboxToWindow(); });
+    window.addEventListener('resize', () => { if (!$('lightbox').hidden) lightboxView.fitMode ? fitLightboxToWindow() : renderLightboxView(); });
+    fields.forEach((id) => $(id).addEventListener('input', saveState)); fields.forEach((id) => $(id).addEventListener('change', saveState));
+    window.addEventListener('beforeunload', () => { sourceUrls.forEach((url) => URL.revokeObjectURL(url)); historyTasks.forEach((task) => { task.sourcePreviewUrls.forEach((url) => URL.revokeObjectURL(url)); if (task.outputPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(task.outputPreviewUrl); }); });
+    (async function initialize() { $('runBtn').disabled = true; await loadState(); syncModelFields(); showEmpty(); renderHistory(); await loadHistory(); $('runBtn').disabled = false; })();
+  </script>
+</body>
+</html>
