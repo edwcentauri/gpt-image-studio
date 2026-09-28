@@ -59,10 +59,15 @@
     .mode button.active { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px #425165; }
     .upload { border: 1px dashed #536276; border-radius: 8px; padding: 13px; background: #131922; }
     .upload input { border: 0; padding: 0; background: transparent; margin-top: 3px; }
+    .source-url-row { display: grid; grid-template-columns: minmax(0, 1fr) 38px; gap: 7px; align-items: center; margin-top: 10px; }
+    .source-url-row input { min-width: 0; }
+    .source-url-add { width: 38px; height: 38px; padding: 0; border: 1px solid #526176; border-radius: 7px; color: #f5ff49; background: #151c26; font: inherit; font-size: 23px; line-height: 1; cursor: pointer; }
+    .source-url-add:hover { border-color: #f5ff49; box-shadow: 0 0 9px #f5ff4966; }
     .upload-preview { display: none; position: relative; margin-top: 11px; }
     .upload-preview.show { display: block; }
     .source-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
     .source-card { min-width: 0; position: relative; border: 1px solid var(--border); border-radius: 7px; background: #0d1117; padding: 5px; }
+    .source-card.url-source { border: 2px solid #f5ff49; box-shadow: 0 0 9px #f5ff4966, inset 0 0 5px #f5ff4922; }
     .source-card img { display: block; width: 100%; height: 125px; object-fit: contain; border-radius: 4px; }
     .source-card .file-meta { display: block; margin: 5px 22px 1px 2px; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .source-remove { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; padding: 0; border: 1px solid #526176; border-radius: 5px; color: var(--text); background: #151c26e8; cursor: pointer; line-height: 1; }
@@ -112,6 +117,7 @@
     .history-media figcaption { color: var(--muted); font-size: 10px; margin-bottom: 5px; }
     .history-image-wrap { position: relative; }
     .history-media img { display: block; width: 100%; height: 170px; object-fit: contain; border: 1px solid var(--border); border-radius: 6px; background: #0d1117; }
+    .history-media img.url-source { border: 2px solid #f5ff49; box-shadow: 0 0 9px #f5ff4966; }
     .preview-download { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; padding: 0; border: 1px solid #64738a; border-radius: 6px; color: var(--text); background: #111821d9; cursor: pointer; font-size: 16px; line-height: 1; }
     .preview-download:hover { border-color: var(--accent); color: var(--accent); }
     .history-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
@@ -164,7 +170,7 @@
           <h2 class="panel-title">任务输入</h2>
           <div class="mode" role="tablist"><button id="modeGen" class="active" type="button">文生图</button><button id="modeEdit" type="button">图生图</button></div>
           <div class="field"><label for="prompt">提示词</label><textarea id="prompt" placeholder="描述主体、构图、光线、风格与需要避免的内容..."></textarea></div>
-          <div id="uploadArea" class="upload field" hidden><label for="imageFile">上传参考照片</label><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" multiple /><div class="hint">最多 16 张；可一次选择多张，再次选择会追加，点击缩略图右上角可移除。</div><div id="uploadPreview" class="upload-preview"><div id="sourceGallery" class="source-gallery"></div></div></div>
+          <div id="uploadArea" class="upload field" hidden><label for="imageFile">上传参考照片</label><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" multiple /><div class="source-url-row"><input id="sourceImageUrl" type="url" placeholder="输入参考图 URL" aria-label="参考图 URL" /><button id="addSourceUrl" class="source-url-add" type="button" title="添加 URL 参考图" aria-label="添加 URL 参考图">+</button></div><div class="hint">最多 16 张；可添加本地图片或 URL 图片，拖动缩略图可调整顺序，点击缩略图右上角可移除。</div><div id="uploadPreview" class="upload-preview"><div id="sourceGallery" class="source-gallery"></div></div></div>
         </div>
 
         <details class="panel">
@@ -222,7 +228,7 @@
     const MAX_SOURCE_IMAGES = 16;
     const ACCEPTED_SOURCE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
     const MIN_LIGHTBOX_ZOOM = 0.01, MAX_LIGHTBOX_ZOOM = 8;
-    let mode = 'generation', sourceFiles = [], sourceUrls = [], outputUrl = '', outputBlob = null, currentOutputName = '', currentOutputPrompt = '', timerId = null, startedAt = 0, controller = null, toastTimer = null, dragDepth = 0;
+    let mode = 'generation', sourceItems = [], sourceFiles = [], sourceUrls = [], outputUrl = '', outputBlob = null, currentOutputName = '', currentOutputPrompt = '', timerId = null, startedAt = 0, controller = null, toastTimer = null, dragDepth = 0;
     const historyTasks = [];
     let historyDbPromise = null, historyQueue = Promise.resolve(), historyReady = false, historyStorageError = false;
     function openHistoryDb() {
@@ -263,18 +269,20 @@
     }
     function historyRecord(task) {
       // Store image bytes and metadata, never temporary object URLs or API credentials.
-      const { sourcePreviewUrls, outputPreviewUrl, cached, ...record } = task;
-      return record;
+      const { sourcePreviewUrls, outputPreviewUrl, cached, sourceItems, ...record } = task;
+      return { ...record, sourceItems: (sourceItems || []).map((item) => item.kind === 'url' ? { kind: 'url', url: item.url } : { kind: 'file', file: item.file }) };
     }
     function hydrateHistoryTask(record) {
-      const sourceFiles = Array.from(record.sourceFiles || []);
-      return { ...record, sourceFiles, cached: true,
-        sourcePreviewUrls: sourceFiles.map((file) => URL.createObjectURL(file)),
+      const sourceItems = Array.from(record.sourceItems || (record.sourceFiles || []).map((file) => ({ kind: 'file', file })));
+      const sourceFiles = sourceItems.filter((item) => item.kind === 'file').map((item) => item.file);
+      sourceItems.forEach((item) => { if (item.kind === 'file') item.previewUrl = URL.createObjectURL(item.file); });
+      return { ...record, sourceItems, sourceFiles, cached: true,
+        sourcePreviewUrls: sourceItems.map(sourceItemPreview),
         outputPreviewUrl: record.outputBlob ? URL.createObjectURL(record.outputBlob) : record.outputRemoteUrl || '' };
     }
     function releaseHistoryTask(task) {
       if (task.sourcePreviewUrls.includes(lightboxState.src) || task.outputPreviewUrl === lightboxState.src) closeLightbox();
-      task.sourcePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+      task.sourceItems?.forEach((item) => { if (item.kind === 'file' && item.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl); });
       if (task.outputPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(task.outputPreviewUrl);
     }
     async function loadHistory() {
@@ -336,6 +344,7 @@
     function endTimer() { if (timerId) clearInterval(timerId); timerId = null; $('timer').textContent = formatTime(performance.now() - startedAt); }
     function generatedImageName(timestamp = Date.now(), format = 'png') { const date = new Date(timestamp); const pad = (value) => String(value).padStart(2, '0'); return `gpt-image_${String(date.getFullYear()).slice(-2)}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}.${format}`; }
     function extensionForMime(mime, fallbackName = '') { if (mime === 'image/jpeg') return 'jpeg'; if (mime === 'image/webp') return 'webp'; if (mime === 'image/png') return 'png'; const match = fallbackName.match(/\.([a-z0-9]{2,5})(?:[?#].*)?$/i); return match ? match[1].toLowerCase().replace('jpg', 'jpeg') : 'png'; }
+    function fileToDataUrl(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('无法读取本地参考图。')); reader.onerror = () => reject(reader.error || new Error('无法读取本地参考图。')); reader.readAsDataURL(file); }); }
     function showToast(message) { clearTimeout(toastTimer); $('toast').textContent = message; $('toast').hidden = false; toastTimer = setTimeout(() => { $('toast').hidden = true; }, 5000); }
     function onImageDimensions(image, callback) { const report = () => { if (image.naturalWidth && image.naturalHeight) callback(`${image.naturalWidth} × ${image.naturalHeight} px`); }; if (image.complete) queueMicrotask(report); else image.addEventListener('load', report, { once: true }); }
     function authorizationForImage(src) { try { if (new URL(src, location.href).origin === new URL(normalizeBase($('baseUrl').value)).origin && $('apiKey').value.trim()) return `Bearer ${$('apiKey').value.trim()}`; } catch (_) {} return ''; }
@@ -364,25 +373,55 @@
     function showEmpty() { $('stage').innerHTML = '<div class="empty"><div class="glyph">▧</div><div>生成结果或错误信息会显示在这里</div></div>'; }
     function showError(message) { $('stage').innerHTML = ''; const el = document.createElement('div'); el.className = 'error'; el.textContent = message; $('stage').appendChild(el); }
     function setImage(src, filename, blob = null, watermarkRemoved = false, metadataPrompt = '') { $('stage').innerHTML = ''; const img = document.createElement('img'); const resolution = document.createElement('span'); const resultLabel = watermarkRemoved ? '生成结果 · 图片已去除水印' : '生成结果'; resolution.className = 'stage-resolution'; resolution.textContent = '读取分辨率…'; img.alt = resultLabel; img.src = src; makePreviewable(img, resultLabel, filename, blob, metadataPrompt); onImageDimensions(img, (value) => { resolution.textContent = value; }); $('stage').append(img, resolution); if (watermarkRemoved) { const flag = document.createElement('span'); flag.className = 'result-flag'; flag.textContent = '图片已去除水印'; $('stage').appendChild(flag); } }
+    function sourceItemPreview(item) { return item.kind === 'url' ? item.url : item.previewUrl; }
+    function sourceItemLabel(item) { return item.kind === 'url' ? item.url : item.file.name; }
+    function syncSourceState() {
+      sourceFiles = sourceItems.filter((item) => item.kind === 'file').map((item) => item.file);
+      sourceUrls = sourceItems.map(sourceItemPreview);
+    }
     function renderSourceFiles() {
       const gallery = $('sourceGallery'); gallery.innerHTML = '';
-      sourceFiles.forEach((file, index) => {
-        const card = document.createElement('div'); card.className = 'source-card';
-        const image = document.createElement('img'); image.alt = `参考图 ${index + 1}`; image.src = sourceUrls[index]; makePreviewable(image, `参考图 ${index + 1} · ${file.name}`, file.name, file, () => buildRequestPrompt($('prompt').value, $('removeWatermark').checked));
-        const meta = document.createElement('span'); const fileSizeText = `${(file.size / 1024 / 1024).toFixed(2)} MB`; meta.className = 'file-meta'; meta.textContent = `${index + 1}. 读取分辨率… · ${file.name}`; onImageDimensions(image, (value) => { meta.textContent = `${index + 1}. ${value} · ${file.name} · ${fileSizeText}`; });
-        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'source-remove'; remove.textContent = '×'; remove.title = `移除参考图 ${index + 1}`; remove.setAttribute('aria-label', remove.title); remove.onclick = () => setSourceFiles(sourceFiles.filter((_, fileIndex) => fileIndex !== index));
+      sourceItems.forEach((item, index) => {
+        const card = document.createElement('div'); card.className = `source-card${item.kind === 'url' ? ' url-source' : ''}`; card.draggable = true; card.dataset.sourceIndex = String(index);
+        card.addEventListener('dragstart', (event) => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(index)); card.classList.add('dragging'); });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dragover', (event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; });
+        card.addEventListener('drop', (event) => { event.preventDefault(); const from = Number(event.dataTransfer.getData('text/plain')); if (!Number.isInteger(from) || from === index || !sourceItems[from]) return; const reordered = sourceItems.slice(); const [moved] = reordered.splice(from, 1); reordered.splice(index, 0, moved); setSourceItems(reordered); });
+        const image = document.createElement('img'); image.alt = `参考图 ${index + 1}`; image.src = sourceItemPreview(item); makePreviewable(image, `参考图 ${index + 1} · ${sourceItemLabel(item)}`, item.kind === 'file' ? item.file.name : item.url, item.kind === 'file' ? item.file : null, () => buildRequestPrompt($('prompt').value, $('removeWatermark').checked));
+        const meta = document.createElement('span'); meta.className = 'file-meta'; meta.textContent = `${index + 1}. 读取分辨率… · ${sourceItemLabel(item)}`; onImageDimensions(image, (value) => { meta.textContent = `${index + 1}. ${value} · ${sourceItemLabel(item)}${item.kind === 'url' ? ' · URL 参考图' : ` · ${(item.file.size / 1024 / 1024).toFixed(2)} MB`}`; });
+        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'source-remove'; remove.textContent = '×'; remove.title = `移除参考图 ${index + 1}`; remove.setAttribute('aria-label', remove.title); remove.onclick = () => setSourceItems(sourceItems.filter((_, itemIndex) => itemIndex !== index));
         card.append(image, meta, remove); gallery.appendChild(card);
       });
-      $('uploadPreview').classList.toggle('show', sourceFiles.length > 0);
+      $('uploadPreview').classList.toggle('show', sourceItems.length > 0);
     }
-    function setSourceFiles(files) {
+    function setSourceItems(items) {
       if (sourceUrls.includes(lightboxState.src)) closeLightbox();
-      sourceUrls.forEach((url) => URL.revokeObjectURL(url));
-      sourceFiles = Array.from(files || []).slice(0, MAX_SOURCE_IMAGES); sourceUrls = sourceFiles.map((file) => URL.createObjectURL(file)); $('imageFile').value = ''; renderSourceFiles();
+      sourceUrls.filter((url) => url?.startsWith('blob:')).forEach((url) => URL.revokeObjectURL(url));
+      const previousItems = sourceItems;
+      sourceItems = Array.from(items || []).slice(0, MAX_SOURCE_IMAGES).map((item) => item?.kind === 'url' ? { kind: 'url', url: item.url } : { kind: 'file', file: item.file || item });
+      sourceItems.forEach((item) => {
+        if (item.kind !== 'file') return;
+        const previous = previousItems.find((candidate) => candidate.kind === 'file' && candidate.file === item.file && candidate.previewUrl);
+        item.previewUrl = previous?.previewUrl || URL.createObjectURL(item.file);
+      });
+      const retainedPreviews = new Set(sourceItems.filter((item) => item.kind === 'file').map((item) => item.previewUrl));
+      previousItems.forEach((item) => { if (item.kind === 'file' && item.previewUrl?.startsWith('blob:') && !retainedPreviews.has(item.previewUrl)) URL.revokeObjectURL(item.previewUrl); });
+      syncSourceState(); $('imageFile').value = ''; renderSourceFiles();
     }
+    function setSourceFiles(files) { setSourceItems(Array.from(files || []).map((file) => ({ kind: 'file', file }))); }
     function appendSourceFiles(files) {
-      const merged = [...sourceFiles]; const signatures = new Set(merged.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
-      let added = 0; Array.from(files || []).forEach((file) => { const signature = `${file.name}:${file.size}:${file.lastModified}`; if (!signatures.has(signature) && merged.length < MAX_SOURCE_IMAGES) { signatures.add(signature); merged.push(file); added += 1; } }); setSourceFiles(merged); return added;
+      const merged = [...sourceItems]; const signatures = new Set(merged.filter((item) => item.kind === 'file').map((item) => `${item.file.name}:${item.file.size}:${item.file.lastModified}`));
+      let added = 0; Array.from(files || []).forEach((file) => { const signature = `${file.name}:${file.size}:${file.lastModified}`; if (!signatures.has(signature) && merged.length < MAX_SOURCE_IMAGES) { signatures.add(signature); merged.push({ kind: 'file', file }); added += 1; } }); setSourceItems(merged); return added;
+    }
+    function addSourceUrl() {
+      const value = $('sourceImageUrl').value.trim();
+      if (!value) return showToast('请输入参考图 URL。');
+      let parsed;
+      try { parsed = new URL(value); } catch (_) { return showToast('参考图 URL 格式无效。'); }
+      if (!['http:', 'https:'].includes(parsed.protocol)) return showToast('参考图 URL 只支持 http 或 https。');
+      if (sourceItems.length >= MAX_SOURCE_IMAGES) return showToast(`最多添加 ${MAX_SOURCE_IMAGES} 张参考图。`);
+      if (sourceItems.some((item) => item.kind === 'url' && item.url === parsed.href)) return showToast('这张 URL 参考图已经添加。');
+      setSourceItems([...sourceItems, { kind: 'url', url: parsed.href }]); $('sourceImageUrl').value = ''; setMode('edit'); showToast('已添加 URL 参考图。');
     }
     function isFileDrag(event) { return Array.from(event.dataTransfer?.types || []).includes('Files'); }
     function hideDropOverlay() { dragDepth = 0; $('dropOverlay').hidden = true; }
@@ -399,10 +438,10 @@
       else if (added < accepted.length) showToast(`已添加 ${added} 张参考图；重复图片或超过 16 张的部分已忽略。`);
       else showToast(`已添加 ${added} 张参考图。`);
     }
-    function appendHistoryFigure(container, label, src, filename, blob = null, metadataPrompt = '') {
+    function appendHistoryFigure(container, label, src, filename, blob = null, metadataPrompt = '', urlSource = false) {
       if (!src) return;
       const figure = document.createElement('figure'); const caption = document.createElement('figcaption'); caption.textContent = label;
-      const wrap = document.createElement('div'); wrap.className = 'history-image-wrap'; const image = document.createElement('img'); image.alt = label; image.src = src; makePreviewable(image, filename ? `${label} · ${filename}` : label, filename, blob, metadataPrompt);
+      const wrap = document.createElement('div'); wrap.className = 'history-image-wrap'; const image = document.createElement('img'); image.alt = label; image.src = src; if (urlSource) image.classList.add('url-source'); makePreviewable(image, filename ? `${label} · ${filename}` : label, filename, blob, metadataPrompt);
       onImageDimensions(image, (value) => { caption.textContent = `${label} · ${value}`; });
       const downloadButton = document.createElement('button'); downloadButton.type = 'button'; downloadButton.className = 'preview-download'; downloadButton.textContent = '↓'; downloadButton.title = `下载${label}`; downloadButton.setAttribute('aria-label', downloadButton.title); downloadButton.onclick = (event) => { event.preventDefault(); event.stopPropagation(); downloadImage(src, filename, blob, metadataPrompt); };
       wrap.append(image, downloadButton); figure.append(caption, wrap); container.appendChild(figure);
@@ -418,13 +457,13 @@
         const time = document.createElement('time'); time.className = 'history-time'; time.textContent = new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false });
         main.append(title, excerpt); summary.append(main, time);
         const body = document.createElement('div'); body.className = 'history-body'; const prompt = document.createElement('p'); prompt.className = 'history-prompt'; prompt.textContent = task.prompt || '（无提示词）';
-        const media = document.createElement('div'); const outputLabel = (task.removeWatermark ? '生成结果 · 图片已去除水印' : '生成结果') + (task.outputRemoteUrl && !task.outputBlob ? ' · 仅链接，可能过期' : '') + (!task.cached ? ' · 未缓存' : ''); media.className = 'history-media'; task.sourcePreviewUrls.forEach((url, sourceIndex) => appendHistoryFigure(media, `参考图 ${sourceIndex + 1}`, url, task.sourceFiles[sourceIndex]?.name, task.sourceFiles[sourceIndex], task.requestPrompt)); appendHistoryFigure(media, outputLabel, task.outputPreviewUrl, task.outputName, task.outputBlob, task.requestPrompt);
+        const media = document.createElement('div'); const outputLabel = (task.removeWatermark ? '生成结果 · 图片已去除水印' : '生成结果') + (task.outputRemoteUrl && !task.outputBlob ? ' · 仅链接，可能过期' : '') + (!task.cached ? ' · 未缓存' : ''); media.className = 'history-media'; task.sourceItems.forEach((item, sourceIndex) => { appendHistoryFigure(media, `参考图 ${sourceIndex + 1}${item.kind === 'url' ? ' · URL' : ''}`, sourceItemPreview(item), sourceItemLabel(item), item.kind === 'file' ? item.file : null, task.requestPrompt, item.kind === 'url'); }); appendHistoryFigure(media, outputLabel, task.outputPreviewUrl, task.outputName, task.outputBlob, task.requestPrompt);
         const actions = document.createElement('div'); actions.className = 'history-actions'; const reuse = document.createElement('button'); reuse.type = 'button'; reuse.className = 'secondary'; reuse.textContent = '复用';
         reuse.onclick = (event) => { event.preventDefault(); event.stopPropagation(); reuseHistory(historyTasks.findIndex((entry) => entry.id === task.id)); }; const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'secondary danger'; remove.textContent = '删除'; remove.onclick = async (event) => { event.preventDefault(); event.stopPropagation(); remove.disabled = true; await deleteHistoryTask(task.id); remove.disabled = false; }; actions.append(reuse, remove); body.append(prompt, media, actions); item.append(summary, body); list.appendChild(item);
       });
     }
     function addHistoryTask(task) {
-      const snapshot = { ...task, sourceFiles: Array.from(task.sourceFiles || []), outputBlob, outputRemoteUrl: outputBlob ? '' : outputUrl };
+      const snapshot = { ...task, sourceItems: Array.from(task.sourceItems || []), sourceFiles: Array.from(task.sourceFiles || []), outputBlob, outputRemoteUrl: outputBlob ? '' : outputUrl };
       return queueHistoryAction(async () => {
         if (!snapshot.outputBlob && snapshot.outputRemoteUrl) {
           const imageController = new AbortController();
@@ -441,7 +480,7 @@
         const record = { id: window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           createdAt: snapshot.createdAt || Date.now(), model: snapshot.model || defaults.model,
           mode: snapshot.mode, prompt: snapshot.prompt, requestPrompt: snapshot.requestPrompt || snapshot.prompt,
-          removeWatermark: !!snapshot.removeWatermark, sourceFiles: snapshot.sourceFiles,
+          removeWatermark: !!snapshot.removeWatermark, sourceItems: snapshot.sourceItems, sourceFiles: snapshot.sourceFiles,
           outputName: snapshot.outputName, outputBlob: snapshot.outputBlob || null, outputRemoteUrl: snapshot.outputRemoteUrl };
         const entry = hydrateHistoryTask(record); entry.cached = false;
         historyTasks.push(entry);
@@ -456,7 +495,7 @@
       });
     }
     function reuseHistory(index) {
-      const task = historyTasks[index]; if (!task) return; $('model').value = task.model || defaults.model; syncModelFields(); $('prompt').value = task.prompt; $('removeWatermark').checked = !!task.removeWatermark; setMode(task.mode); setSourceFiles(task.sourceFiles); saveState(); $('prompt').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('prompt').focus();
+      const task = historyTasks[index]; if (!task) return; $('model').value = task.model || defaults.model; syncModelFields(); $('prompt').value = task.prompt; $('removeWatermark').checked = !!task.removeWatermark; setMode(task.mode); setSourceItems(task.sourceItems || task.sourceFiles); saveState(); $('prompt').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('prompt').focus();
     }
     function normalizeBase(url) { return (url || defaults.baseUrl).trim().replace(/\/+$/, ''); }
     function endpoint(path) { const base = normalizeBase($('baseUrl').value), clean = path.replace(/^\/+/, ''); return /\/images$/.test(base) ? `${base}/${clean.split('/').pop()}` : `${base}/${clean}`; }
@@ -497,17 +536,18 @@
     }
     async function parseResponse(response, outputFormat) { let data; try { data = await response.json(); } catch (_) { throw new Error(`HTTP ${response.status}: ${response.statusText}`); } if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`); const item = data?.data?.[0] || data?.output?.[0] || data; if (item?.b64_json) { const mime = outputFormat === 'jpeg' ? 'image/jpeg' : outputFormat === 'webp' ? 'image/webp' : 'image/png'; const bin = atob(item.b64_json); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); outputBlob = new Blob([bytes], { type: mime }); outputUrl = URL.createObjectURL(outputBlob); return outputUrl; } if (item?.url) { outputBlob = null; outputUrl = item.url; return outputUrl; } throw new Error('响应中未找到图片数据（ModelFlare 图片接口应返回 data[].b64_json）。'); }
     async function run() {
-      const key = $('apiKey').value.trim(), prompt = $('prompt').value.trim(); if (!key) return showError('请先填写 API Key。'); if (!prompt) return showError('请先填写提示词。'); if (mode === 'edit' && !sourceFiles.length) return showError('图生图模式需要先上传至少一张图片。');
+      const key = $('apiKey').value.trim(), prompt = $('prompt').value.trim(); if (!key) return showError('请先填写 API Key。'); if (!prompt) return showError('请先填写提示词。'); if (mode === 'edit' && !sourceItems.length) return showError('图生图模式需要先添加至少一张参考图。');
       syncModelFields();
-      const taskMode = mode, taskPrompt = prompt, taskSourceFiles = sourceFiles.slice(), taskOutputFormat = $('outputFormat').value, taskRemoveWatermark = $('removeWatermark').checked;
+      const taskMode = mode, taskPrompt = prompt, taskSourceItems = sourceItems.slice(), taskOutputFormat = $('outputFormat').value, taskRemoveWatermark = $('removeWatermark').checked;
       const requestPrompt = buildRequestPrompt(taskPrompt, taskRemoveWatermark); const requestOptions = optionsObject(requestPrompt);
       if (lightboxState.src === outputUrl) closeLightbox(); if (outputUrl && outputBlob) URL.revokeObjectURL(outputUrl); outputUrl = ''; outputBlob = null; currentOutputName = ''; currentOutputPrompt = '';
       saveState(); $('runBtn').disabled = true; $('downloadBtn').disabled = true; $('statusText').className = 'busy'; $('statusText').textContent = '请求进行中'; showEmpty(); beginTimer(); controller = new AbortController();
       try {
         let response;
-        if (taskMode === 'edit') { const form = new FormData(); Object.entries(requestOptions).forEach(([k,v]) => form.append(k, v)); taskSourceFiles.forEach((file) => form.append('image[]', file, file.name)); response = await fetch(requestEndpoint('/images/edits'), { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form, signal: controller.signal }); }
+        if (taskMode === 'edit' && isImage25()) { const images = taskSourceItems.map((item) => item.kind === 'url' ? { image_url: item.url } : null); for (let index = 0; index < taskSourceItems.length; index += 1) { if (taskSourceItems[index].kind !== 'file') continue; const dataUrl = await fileToDataUrl(taskSourceItems[index].file); if (dataUrl.length > 20971520) throw new Error('本地参考图转为 Base64 后超过 ModelFlare 单张图片 20 MB 的 JSON 限制，请压缩图片后重试。'); images[index] = { image_url: dataUrl }; } const editOptions = { ...requestOptions, images }; response = await fetch(requestEndpoint('/images/edits'), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(editOptions), signal: controller.signal }); }
+        else if (taskMode === 'edit') { if (taskSourceItems.some((item) => item.kind === 'url')) throw new Error('GPT Image 2 的编辑接口仅支持上传图片；URL 参考图目前仅支持 GPT Image 2.5，请切换模型后重试。'); const form = new FormData(); Object.entries(requestOptions).forEach(([k,v]) => form.append(k, v)); taskSourceItems.forEach((item) => form.append('image[]', item.file, item.file.name)); response = await fetch(requestEndpoint('/images/edits'), { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form, signal: controller.signal }); }
         else { response = await fetch(requestEndpoint('/images/generations'), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(requestOptions), signal: controller.signal }); }
-        const src = await parseResponse(response, taskOutputFormat); const createdAt = Date.now(); currentOutputName = generatedImageName(createdAt, taskOutputFormat); currentOutputPrompt = requestPrompt; setImage(src, currentOutputName, outputBlob, taskRemoveWatermark, requestPrompt); await addHistoryTask({ model: requestOptions.model, mode: taskMode, prompt: taskPrompt, requestPrompt, removeWatermark: taskRemoveWatermark, sourceFiles: taskSourceFiles, createdAt, outputName: currentOutputName }); $('statusText').className = 'ok'; $('statusText').textContent = '已完成'; $('downloadBtn').disabled = false;
+        const src = await parseResponse(response, taskOutputFormat); const createdAt = Date.now(); currentOutputName = generatedImageName(createdAt, taskOutputFormat); currentOutputPrompt = requestPrompt; setImage(src, currentOutputName, outputBlob, taskRemoveWatermark, requestPrompt); await addHistoryTask({ model: requestOptions.model, mode: taskMode, prompt: taskPrompt, requestPrompt, removeWatermark: taskRemoveWatermark, sourceItems: taskSourceItems, sourceFiles: taskSourceItems.filter((item) => item.kind === 'file').map((item) => item.file), createdAt, outputName: currentOutputName }); $('statusText').className = 'ok'; $('statusText').textContent = '已完成'; $('downloadBtn').disabled = false;
       } catch (err) { showError(err.name === 'AbortError' ? '任务已取消。' : (err.message || String(err))); $('statusText').className = ''; $('statusText').textContent = err.name === 'AbortError' ? '已取消' : '请求失败'; }
       finally { endTimer(); $('runBtn').disabled = false; controller = null; }
     }
@@ -516,6 +556,8 @@
     $('modeGen').onclick = () => setMode('generation'); $('modeEdit').onclick = () => setMode('edit'); $('runBtn').onclick = run; $('downloadBtn').onclick = download;
     $('resetBtn').onclick = () => { $('prompt').value = ''; setSourceFiles([]); if (lightboxState.src === outputUrl) closeLightbox(); if (outputUrl && outputBlob) URL.revokeObjectURL(outputUrl); outputUrl = ''; outputBlob = null; currentOutputName = ''; currentOutputPrompt = ''; $('downloadBtn').disabled = true; showEmpty(); $('statusText').textContent = '等待任务'; $('statusText').className = ''; saveState(); };
     $('imageFile').onchange = (e) => { const files = e.target.files; if (files?.length) appendSourceFiles(files); };
+    $('addSourceUrl').onclick = addSourceUrl;
+    $('sourceImageUrl').onkeydown = (event) => { if (event.key === 'Enter') { event.preventDefault(); addSourceUrl(); } };
     document.addEventListener('dragenter', handleDragEnter);
     document.addEventListener('dragover', handleDragOver);
     document.addEventListener('dragleave', handleDragLeave);
@@ -542,7 +584,7 @@
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeLightbox(); if ($('lightbox').hidden) return; if (event.key === '+' || event.key === '=') setLightboxZoom(lightboxView.zoom * 1.1); if (event.key === '-') setLightboxZoom(lightboxView.zoom / 1.1); if (event.key === '0') fitLightboxToWindow(); });
     window.addEventListener('resize', () => { if (!$('lightbox').hidden) lightboxView.fitMode ? fitLightboxToWindow() : renderLightboxView(); });
     fields.forEach((id) => $(id).addEventListener('input', saveState)); fields.forEach((id) => $(id).addEventListener('change', saveState));
-    window.addEventListener('beforeunload', () => { sourceUrls.forEach((url) => URL.revokeObjectURL(url)); historyTasks.forEach((task) => { task.sourcePreviewUrls.forEach((url) => URL.revokeObjectURL(url)); if (task.outputPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(task.outputPreviewUrl); }); });
+    window.addEventListener('beforeunload', () => { sourceUrls.filter((url) => url?.startsWith('blob:')).forEach((url) => URL.revokeObjectURL(url)); historyTasks.forEach((task) => { task.sourceItems?.forEach((item) => { if (item.kind === 'file' && item.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl); }); if (task.outputPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(task.outputPreviewUrl); }); });
     (async function initialize() { $('runBtn').disabled = true; await loadState(); syncModelFields(); showEmpty(); renderHistory(); await loadHistory(); $('runBtn').disabled = false; })();
   </script>
 </body>
