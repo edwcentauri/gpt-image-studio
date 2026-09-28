@@ -29,8 +29,9 @@
     .mark { width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 9px; display: grid; place-items: center; background: #222a36; color: var(--accent); font-weight: 800; letter-spacing: -1px; }
     h1 { font-size: 22px; letter-spacing: 0; margin: 0 0 4px; }
     .subtitle { color: var(--muted); font-size: 13px; margin: 0; }
-    .lan-slot { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); border: 1px dashed #485466; padding: 8px 11px; border-radius: 8px; font-size: 12px; white-space: nowrap; }
-    .lan-slot span { color: var(--warm); }
+    .provider-tabs { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: #11161d; }
+    .provider-tabs button { border: 0; border-radius: 6px; padding: 8px 12px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+    .provider-tabs button.active { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px #425165; }
     .layout { display: grid; grid-template-columns: minmax(300px, 0.92fr) minmax(360px, 1.08fr); gap: 18px; align-items: start; }
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
     .panel + .panel { margin-top: 14px; }
@@ -148,7 +149,7 @@
     .footer-note { color: var(--muted); text-align: center; font-size: 11px; margin: 18px 0 0; }
     .busy { color: var(--accent); }
     .ok { color: var(--success); }
-    @media (max-width: 860px) { body { padding: 14px; } header { flex-direction: column; } .lan-slot { align-self: flex-start; } .layout { grid-template-columns: 1fr; } .result-panel { min-height: 430px; } .stage { min-height: 330px; } input, textarea, select { font-size: 16px; } button, input, textarea, select { touch-action: manipulation; } }
+    @media (max-width: 860px) { body { padding: 14px; } header { flex-direction: column; } .provider-tabs { align-self: stretch; } .layout { grid-template-columns: 1fr; } .result-panel { min-height: 430px; } .stage { min-height: 330px; } input, textarea, select { font-size: 16px; } button, input, textarea, select { touch-action: manipulation; } }
     @media (max-width: 480px) { .panel { padding: 14px; } .params { grid-template-columns: 1fr; } textarea { min-height: 150px; } h1 { font-size: 19px; } .source-gallery, .history-media { grid-template-columns: 1fr; } .source-card img { height: 180px; } .history-media img { height: 210px; } }
   </style>
 </head>
@@ -156,7 +157,7 @@
   <main class="shell">
     <header>
       <div class="brand"><div class="mark">GI</div><div><h1>GPT Image Studio</h1><p class="subtitle">可独立分发的单文件文生图 / 图生图工作台</p></div></div>
-      <div class="lan-slot"><span>LAN</span> 广播入口预留 · 尚未启用</div>
+      <div class="provider-tabs" role="tablist" aria-label="模型系列"><button id="providerGpt" class="active" type="button" role="tab">GPT</button><button id="providerGemini" type="button" role="tab">Gemini</button><button id="providerSeedream" type="button" role="tab">Seedream</button></div>
     </header>
 
     <div class="layout">
@@ -178,7 +179,9 @@
           <div class="collapsible-content">
             <div class="field"><label for="model">模型 model</label><select id="model"><option>gpt-image-2</option><option>gpt-image-2.5-flare</option><option>gpt-image-2.5-sunburst</option></select><div id="modelHint" class="hint" aria-live="polite"></div></div>
             <div class="params">
-              <div><label for="size">size</label><select id="size"><option value="auto">auto</option><option>1024x1024</option><option>1536x1024</option><option>1024x1536</option><option>2048x2048</option><option>2048x1152</option><option>1152x2048</option><option>3840x2160</option><option>2160x3840</option></select></div>
+              <div id="sizeField"><label for="size">size</label><select id="size"><option value="auto">auto</option><option>1024x1024</option><option>1536x1024</option><option>1024x1536</option><option>2048x2048</option><option>2048x1152</option><option>1152x2048</option><option>3840x2160</option><option>2160x3840</option></select></div>
+              <div id="ratioField" hidden><label for="ratio">aspect ratio</label><select id="ratio"></select></div>
+              <div id="imageSizeField" hidden><label for="imageSize">image size</label><select id="imageSize"></select></div>
               <div><label for="quality">quality</label><select id="quality"><option value="auto">auto</option><option>low</option><option>medium</option><option>high</option><option value="xhigh">xhigh</option><option value="max">max</option></select></div>
               <div><label for="moderation">moderation</label><select id="moderation"><option value="auto">auto</option><option>low</option></select></div>
               <div><label for="background">background</label><select id="background"><option value="auto">auto</option><option>opaque</option><option value="transparent">transparent</option></select></div>
@@ -223,12 +226,14 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const fields = ['apiKey','baseUrl','model','prompt','size','quality','moderation','background','outputFormat','outputCompression','removeWatermark','saveKey'];
+    const fields = ['apiKey','baseUrl','model','prompt','size','quality','moderation','background','outputFormat','outputCompression','removeWatermark','saveKey','ratio','imageSize'];
     const defaults = { model: 'gpt-image-2', baseUrl: 'https://modelflare.dev/v1', size: 'auto', quality: 'auto', moderation: 'auto', background: 'auto', outputFormat: 'png', outputCompression: 'auto' };
     const MAX_SOURCE_IMAGES = 16;
     const ACCEPTED_SOURCE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
     const MIN_LIGHTBOX_ZOOM = 0.01, MAX_LIGHTBOX_ZOOM = 8;
-    let mode = 'generation', sourceItems = [], sourceFiles = [], sourceUrls = [], outputUrl = '', outputBlob = null, currentOutputName = '', currentOutputPrompt = '', timerId = null, startedAt = 0, controller = null, toastTimer = null, dragDepth = 0;
+    let provider = 'gpt', mode = 'generation', sourceItems = [], sourceFiles = [], sourceUrls = [], outputUrl = '', outputBlob = null, currentOutputName = '', currentOutputPrompt = '', timerId = null, startedAt = 0, controller = null, toastTimer = null, dragDepth = 0;
+    const providerModels = { gpt: ['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'], gemini: ['gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'gemini-2.5-flash-image'], seedream: ['seedream-5-0-lite-260128', 'seedream-5-0-pro-nsfw', 'seedream-5-0-lite-nsfw'] };
+    const geminiConfig = { 'gemini-3-pro-image': { ratios: ['1:1','4:3','3:4','16:9','9:16'], sizes: ['1K','2K','4K'] }, 'gemini-3.1-flash-image': { ratios: ['1:1','4:3','3:4','16:9','9:16'], sizes: ['512','1K','2K','4K'] }, 'gemini-3.1-flash-lite-image': { ratios: ['1:1','3:2','2:3','3:4','4:3','4:5','5:4','9:16','16:9','21:9'], sizes: ['1K'] }, 'gemini-2.5-flash-image': { ratios: ['1:1','4:3','3:4','16:9','9:16'], sizes: ['1K','2K','4K'] } };
     const historyTasks = [];
     let historyDbPromise = null, historyQueue = Promise.resolve(), historyReady = false, historyStorageError = false;
     function openHistoryDb() {
@@ -325,10 +330,12 @@
       try { saved = JSON.parse(localStorage.getItem('gpt-image-studio') || '{}'); } catch (_) {}
       fields.forEach((id) => { const el = $(id); if (!el) return; if (id === 'apiKey' && !saved.saveKey) return; if (saved[id] !== undefined) el.type === 'checkbox' ? el.checked = !!saved[id] : el.value = saved[id]; });
       Object.entries(defaults).forEach(([id, value]) => { if (!$(id).value) $(id).value = value; });
+      provider = ['gpt','gemini','seedream'].includes(saved.provider) ? saved.provider : providerForModel($('model').value);
       setMode(saved.mode === 'edit' ? 'edit' : 'generation', false);
+      setProvider(provider, false);
     }
     function collectPersistedState() {
-      const state = { mode }; fields.forEach((id) => { const el = $(id); state[id] = el.type === 'checkbox' ? el.checked : (id === 'apiKey' && !$('saveKey').checked ? '' : el.value); });
+      const state = { mode, provider }; fields.forEach((id) => { const el = $(id); state[id] = el.type === 'checkbox' ? el.checked : (id === 'apiKey' && !$('saveKey').checked ? '' : el.value); });
       return state;
     }
     window.collectPersistedState = collectPersistedState;
@@ -338,6 +345,14 @@
     }
     function setMode(next, persist = true) {
       mode = next === 'edit' ? 'edit' : 'generation'; const edit = mode === 'edit'; $('modeGen').classList.toggle('active', !edit); $('modeEdit').classList.toggle('active', edit); $('uploadArea').hidden = !edit; $('modeLabel').textContent = edit ? '图生图' : '文生图'; if (persist) saveState();
+    }
+    function providerForModel(model) { return model.startsWith('gemini-') ? 'gemini' : model.startsWith('seedream-') ? 'seedream' : 'gpt'; }
+    function setProvider(next, persist = true) {
+      provider = ['gpt','gemini','seedream'].includes(next) ? next : 'gpt';
+      ['gpt','gemini','seedream'].forEach((name) => { const button = $('provider' + name[0].toUpperCase() + name.slice(1)); button.classList.toggle('active', provider === name); button.setAttribute('aria-selected', String(provider === name)); });
+      const modelSelect = $('model'); modelSelect.replaceChildren(...providerModels[provider].map((model) => new Option(model, model)));
+      if (!providerModels[provider].includes(modelSelect.value)) modelSelect.value = providerModels[provider][0];
+      syncModelFields(); if (persist) saveState();
     }
     function formatTime(ms) { const s = ms / 1000; return `${String(Math.floor(s / 60)).padStart(2,'0')}:${String(Math.floor(s % 60)).padStart(2,'0')}.${Math.floor(ms % 1000 / 100)}`; }
     function beginTimer() { startedAt = performance.now(); $('timer').textContent = '00:00.0'; timerId = setInterval(() => $('timer').textContent = formatTime(performance.now() - startedAt), 100); }
@@ -495,16 +510,24 @@
       });
     }
     function reuseHistory(index) {
-      const task = historyTasks[index]; if (!task) return; $('model').value = task.model || defaults.model; syncModelFields(); $('prompt').value = task.prompt; $('removeWatermark').checked = !!task.removeWatermark; setMode(task.mode); setSourceItems(task.sourceItems || task.sourceFiles); saveState(); $('prompt').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('prompt').focus();
+      const task = historyTasks[index]; if (!task) return; setProvider(providerForModel(task.model || defaults.model), false); $('model').value = task.model || defaults.model; syncModelFields(); $('prompt').value = task.prompt; $('removeWatermark').checked = !!task.removeWatermark; setMode(task.mode); setSourceItems(task.sourceItems || task.sourceFiles); saveState(); $('prompt').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('prompt').focus();
     }
     function normalizeBase(url) { return (url || defaults.baseUrl).trim().replace(/\/+$/, ''); }
     function endpoint(path) { const base = normalizeBase($('baseUrl').value), clean = path.replace(/^\/+/, ''); return /\/images$/.test(base) ? `${base}/${clean.split('/').pop()}` : `${base}/${clean}`; }
     function requestEndpoint(path) { return endpoint(path); }
+    function geminiEndpoint(model) { const base = normalizeBase($('baseUrl').value).replace(/\/v1$/i, ''); return `${base}/v1beta/models/${encodeURIComponent(model)}:generateContent`; }
     function addIfSet(target, key, value) { if (value && value !== 'auto') target[key] = value; }
     function buildRequestPrompt(prompt, removeWatermark) { const text = prompt.trim(); if (!removeWatermark) return text; const completeSentence = /[。.！!?？][”’"'）)\]]?$/.test(text); return `${completeSentence ? text : `${text}。`}去除图片中的水印。`; }
     function optionsObject(requestPrompt) { const o = { model: $('model').value, prompt: requestPrompt, n: 1 }; addIfSet(o, 'size', $('size').value); addIfSet(o, 'quality', $('quality').value); addIfSet(o, 'moderation', $('moderation').value); addIfSet(o, 'background', $('background').value); addIfSet(o, 'output_format', $('outputFormat').value); if ($('outputFormat').value !== 'png' && $('outputCompression').value !== 'auto') o.output_compression = Number($('outputCompression').value); return o; }
     // ModelFlare image contract: https://docs.modelflare.dev/zh/models/image/
     function isImage25() { return ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'].includes($('model').value); }
+    function isGemini() { return provider === 'gemini'; }
+    function isSeedream() { return provider === 'seedream'; }
+    function syncModelOptions(models) {
+      const select = $('model'), previous = select.value;
+      select.replaceChildren(...models.map((model) => new Option(model, model)));
+      select.value = models.includes(previous) ? previous : models[0];
+    }
     function setAllowedOptions(id, values) {
       const select = $(id);
       // Rebuild options: hiding individual <option> elements is unreliable on iOS.
@@ -513,28 +536,55 @@
       select.value = values.includes(previous) ? previous : values[0];
     }
     function syncModelFields() {
-      if (!Array.from($('model').options).some((option) => option.value === $('model').value)) $('model').value = defaults.model;
-      const image25 = isImage25();
-      setAllowedOptions('quality', image25 ? ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] : ['auto', 'low', 'medium', 'high']);
-      setAllowedOptions('background', image25 ? ['auto', 'opaque', 'transparent'] : ['auto', 'opaque']);
-      $('modelHint').textContent = image25
-        ? 'ModelFlare 2.5 支持 xhigh / max 质量和透明背景；超过 2560×1440 像素总量的尺寸属实验性支持。'
-        : 'ModelFlare GPT Image 2 支持 low / medium / high 质量；请求和响应遵循图片模型契约。';
+      const model = $('model').value;
+      provider = providerForModel(model);
+      if (!Array.from($('model').options).some((option) => option.value === model)) syncModelOptions(providerModels[provider]);
+      ['gpt','gemini','seedream'].forEach((name) => { const button = $('provider' + name[0].toUpperCase() + name.slice(1)); button.classList.toggle('active', provider === name); button.setAttribute('aria-selected', String(provider === name)); });
+      const image25 = isImage25(), gemini = isGemini(), seedream = isSeedream();
+      $('ratioField').hidden = !gemini;
+      $('imageSizeField').hidden = !gemini;
+      $('sizeField').hidden = gemini;
+      $('quality').closest('div').hidden = gemini || seedream;
+      $('moderation').closest('div').hidden = gemini || seedream;
+      $('background').closest('div').hidden = gemini || seedream;
+      $('compressionField').hidden = gemini || seedream || $('outputFormat').value === 'png';
+      $('removeWatermark').closest('label').hidden = seedream;
+      if (gemini) {
+        const config = geminiConfig[model];
+        setAllowedOptions('ratio', config.ratios); setAllowedOptions('imageSize', config.sizes);
+        $('modelHint').textContent = 'Gemini 使用原生 generateContent 接口；图生图会把参考图片与提示词放在同一请求中。';
+      } else if (seedream) {
+        setAllowedOptions('size', ['2K','3K','4K','1024x1024','1536x1024','1024x1536','2048x2048','2048x1152','1152x2048','3840x2160','2160x3840']);
+        setAllowedOptions('outputFormat', ['png','jpeg']);
+        $('outputFormat').value = $('outputFormat').value === 'webp' ? 'png' : $('outputFormat').value;
+        $('modelHint').textContent = 'Seedream 使用 Images generations 接口；图生图参考图将按 image 字段发送。';
+      } else {
+        setAllowedOptions('size', ['auto','1024x1024','1536x1024','1024x1536','2048x2048','2048x1152','1152x2048','3840x2160','2160x3840']);
+        setAllowedOptions('quality', image25 ? ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] : ['auto', 'low', 'medium', 'high']);
+        setAllowedOptions('background', image25 ? ['auto', 'opaque', 'transparent'] : ['auto', 'opaque']);
+        setAllowedOptions('outputFormat', image25 && $('background').value === 'transparent' ? ['png','webp'] : ['png','jpeg','webp']);
+        $('modelHint').textContent = image25
+          ? 'ModelFlare 2.5 支持 xhigh / max 质量和透明背景；超过 2560×1440 像素总量的尺寸属实验性支持。'
+          : 'ModelFlare GPT Image 2 支持 low / medium / high 质量；请求和响应遵循图片模型契约。';
+      }
       syncOutputFields();
     }
     function syncOutputFields() {
       const transparent = isImage25() && $('background').value === 'transparent';
       const wasJpeg = $('outputFormat').value === 'jpeg';
-      setAllowedOptions('outputFormat', transparent ? ['png', 'webp'] : ['png', 'jpeg', 'webp']);
+      if (isSeedream()) { setAllowedOptions('outputFormat', ['png','jpeg']); if ($('outputFormat').value === 'webp') $('outputFormat').value = 'png'; }
+      else if (!isGemini()) setAllowedOptions('outputFormat', transparent ? ['png', 'webp'] : ['png', 'jpeg', 'webp']);
       if (transparent && wasJpeg) showToast('透明背景需要 PNG 或 WebP，已切换为 PNG。');
       syncCompressionField();
     }
     function syncCompressionField() {
       const disabled = $('outputFormat').value === 'png';
-      $('outputCompression').disabled = disabled;
-      $('compressionField').hidden = disabled;
+      $('outputCompression').disabled = disabled || isGemini() || isSeedream();
+      $('compressionField').hidden = disabled || isGemini() || isSeedream();
     }
-    async function parseResponse(response, outputFormat) { let data; try { data = await response.json(); } catch (_) { throw new Error(`HTTP ${response.status}: ${response.statusText}`); } if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`); const item = data?.data?.[0] || data?.output?.[0] || data; if (item?.b64_json) { const mime = outputFormat === 'jpeg' ? 'image/jpeg' : outputFormat === 'webp' ? 'image/webp' : 'image/png'; const bin = atob(item.b64_json); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); outputBlob = new Blob([bytes], { type: mime }); outputUrl = URL.createObjectURL(outputBlob); return outputUrl; } if (item?.url) { outputBlob = null; outputUrl = item.url; return outputUrl; } throw new Error('响应中未找到图片数据（ModelFlare 图片接口应返回 data[].b64_json）。'); }
+    async function parseResponse(response, outputFormat) { let data; try { data = await response.json(); } catch (_) { throw new Error(`HTTP ${response.status}: ${response.statusText}`); } if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`); const item = data?.data?.[0] || data?.output?.[0] || data; const inlinePart = data?.candidates?.flatMap((candidate) => candidate?.content?.parts || []).find((part) => part?.inline_data || part?.inlineData); const inline = inlinePart?.inline_data || inlinePart?.inlineData; if (inline?.data) { const mime = inline.mime_type || inline.mimeType || 'image/png'; const bin = atob(inline.data); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); outputBlob = new Blob([bytes], { type: mime }); outputUrl = URL.createObjectURL(outputBlob); return outputUrl; } if (item?.b64_json) { const mime = outputFormat === 'jpeg' ? 'image/jpeg' : outputFormat === 'webp' ? 'image/webp' : 'image/png'; const bin = atob(item.b64_json); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); outputBlob = new Blob([bytes], { type: mime }); outputUrl = URL.createObjectURL(outputBlob); return outputUrl; } if (item?.url) { outputBlob = null; outputUrl = item.url; return outputUrl; } throw new Error('响应中未找到图片数据（请检查模型接口返回的图片字段）。'); }
+    function seedreamOptions(requestPrompt, images = []) { const options = { model: $('model').value, prompt: requestPrompt, n: 1, size: $('size').value === 'auto' ? '2K' : $('size').value, response_format: 'b64_json', output_format: $('outputFormat').value, watermark: false }; if (images.length) options.image = images; return options; }
+    async function buildGeminiRequest(requestPrompt, taskSourceItems) { const parts = [{ text: requestPrompt }]; for (const item of taskSourceItems) { let file = item.file; if (item.kind === 'url') { const response = await fetch(item.url, { signal: controller.signal }); if (!response.ok) throw new Error(`参考图下载失败：HTTP ${response.status}`); file = new File([await response.blob()], 'reference-image', { type: response.headers.get('content-type') || 'image/jpeg' }); } const dataUrl = await fileToDataUrl(file); parts.push({ inline_data: { mime_type: file.type || 'image/jpeg', data: dataUrl.split(',')[1] } }); } const config = { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: $('ratio').value } }; if ($('imageSize').value) config.imageConfig.imageSize = $('imageSize').value; return { contents: [{ role: 'user', parts }], generationConfig: config }; }
     async function run() {
       const key = $('apiKey').value.trim(), prompt = $('prompt').value.trim(); if (!key) return showError('请先填写 API Key。'); if (!prompt) return showError('请先填写提示词。'); if (mode === 'edit' && !sourceItems.length) return showError('图生图模式需要先添加至少一张参考图。');
       syncModelFields();
@@ -544,15 +594,18 @@
       saveState(); $('runBtn').disabled = true; $('downloadBtn').disabled = true; $('statusText').className = 'busy'; $('statusText').textContent = '请求进行中'; showEmpty(); beginTimer(); controller = new AbortController();
       try {
         let response;
-        if (taskMode === 'edit' && isImage25()) { const images = taskSourceItems.map((item) => item.kind === 'url' ? { image_url: item.url } : null); for (let index = 0; index < taskSourceItems.length; index += 1) { if (taskSourceItems[index].kind !== 'file') continue; const dataUrl = await fileToDataUrl(taskSourceItems[index].file); if (dataUrl.length > 20971520) throw new Error('本地参考图转为 Base64 后超过 ModelFlare 单张图片 20 MB 的 JSON 限制，请压缩图片后重试。'); images[index] = { image_url: dataUrl }; } const editOptions = { ...requestOptions, images }; response = await fetch(requestEndpoint('/images/edits'), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(editOptions), signal: controller.signal }); }
+        if (isGemini()) { const body = await buildGeminiRequest(requestPrompt, taskMode === 'edit' ? taskSourceItems : []); response = await fetch(geminiEndpoint($('model').value), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal }); }
+        else if (isSeedream()) { const images = []; for (const item of taskMode === 'edit' ? taskSourceItems : []) { if (item.kind === 'url') images.push(item.url); else images.push(await fileToDataUrl(item.file)); } const body = seedreamOptions(requestPrompt, images); response = await fetch(requestEndpoint('/images/generations'), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal }); }
+        else if (taskMode === 'edit' && isImage25()) { const images = taskSourceItems.map((item) => item.kind === 'url' ? { image_url: item.url } : null); for (let index = 0; index < taskSourceItems.length; index += 1) { if (taskSourceItems[index].kind !== 'file') continue; const dataUrl = await fileToDataUrl(taskSourceItems[index].file); if (dataUrl.length > 20971520) throw new Error('本地参考图转为 Base64 后超过 ModelFlare 单张图片 20 MB 的 JSON 限制，请压缩图片后重试。'); images[index] = { image_url: dataUrl }; } const editOptions = { ...requestOptions, images }; response = await fetch(requestEndpoint('/images/edits'), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(editOptions), signal: controller.signal }); }
         else if (taskMode === 'edit') { if (taskSourceItems.some((item) => item.kind === 'url')) throw new Error('GPT Image 2 的编辑接口仅支持上传图片；URL 参考图目前仅支持 GPT Image 2.5，请切换模型后重试。'); const form = new FormData(); Object.entries(requestOptions).forEach(([k,v]) => form.append(k, v)); taskSourceItems.forEach((item) => form.append('image[]', item.file, item.file.name)); response = await fetch(requestEndpoint('/images/edits'), { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form, signal: controller.signal }); }
         else { response = await fetch(requestEndpoint('/images/generations'), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(requestOptions), signal: controller.signal }); }
-        const src = await parseResponse(response, taskOutputFormat); const createdAt = Date.now(); currentOutputName = generatedImageName(createdAt, taskOutputFormat); currentOutputPrompt = requestPrompt; setImage(src, currentOutputName, outputBlob, taskRemoveWatermark, requestPrompt); await addHistoryTask({ model: requestOptions.model, mode: taskMode, prompt: taskPrompt, requestPrompt, removeWatermark: taskRemoveWatermark, sourceItems: taskSourceItems, sourceFiles: taskSourceItems.filter((item) => item.kind === 'file').map((item) => item.file), createdAt, outputName: currentOutputName }); $('statusText').className = 'ok'; $('statusText').textContent = '已完成'; $('downloadBtn').disabled = false;
+        const src = await parseResponse(response, taskOutputFormat); const createdAt = Date.now(); const resultFormat = outputBlob ? extensionForMime(outputBlob.type, taskOutputFormat) : taskOutputFormat; currentOutputName = generatedImageName(createdAt, resultFormat); currentOutputPrompt = requestPrompt; setImage(src, currentOutputName, outputBlob, taskRemoveWatermark && !isSeedream(), requestPrompt); await addHistoryTask({ model: requestOptions.model, mode: taskMode, prompt: taskPrompt, requestPrompt, removeWatermark: taskRemoveWatermark && !isSeedream(), sourceItems: taskSourceItems, sourceFiles: taskSourceItems.filter((item) => item.kind === 'file').map((item) => item.file), createdAt, outputName: currentOutputName }); $('statusText').className = 'ok'; $('statusText').textContent = '已完成'; $('downloadBtn').disabled = false;
       } catch (err) { showError(err.name === 'AbortError' ? '任务已取消。' : (err.message || String(err))); $('statusText').className = ''; $('statusText').textContent = err.name === 'AbortError' ? '已取消' : '请求失败'; }
       finally { endTimer(); $('runBtn').disabled = false; controller = null; }
     }
     async function download() { if (outputUrl) await downloadImage(outputUrl, currentOutputName, outputBlob, currentOutputPrompt); }
     $('clearHistoryBtn').onclick = async () => { $('clearHistoryBtn').disabled = true; await clearHistory(); renderHistory(); };
+    $('providerGpt').onclick = () => setProvider('gpt'); $('providerGemini').onclick = () => setProvider('gemini'); $('providerSeedream').onclick = () => setProvider('seedream');
     $('modeGen').onclick = () => setMode('generation'); $('modeEdit').onclick = () => setMode('edit'); $('runBtn').onclick = run; $('downloadBtn').onclick = download;
     $('resetBtn').onclick = () => { $('prompt').value = ''; setSourceFiles([]); if (lightboxState.src === outputUrl) closeLightbox(); if (outputUrl && outputBlob) URL.revokeObjectURL(outputUrl); outputUrl = ''; outputBlob = null; currentOutputName = ''; currentOutputPrompt = ''; $('downloadBtn').disabled = true; showEmpty(); $('statusText').textContent = '等待任务'; $('statusText').className = ''; saveState(); };
     $('imageFile').onchange = (e) => { const files = e.target.files; if (files?.length) appendSourceFiles(files); };
@@ -565,9 +618,10 @@
     document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
     document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
     window.addEventListener('blur', hideDropOverlay);
-    $('model').addEventListener('change', () => { syncModelFields(); saveState(); });
+    $('model').addEventListener('change', () => { provider = providerForModel($('model').value); syncModelFields(); saveState(); });
     $('background').addEventListener('change', () => { syncOutputFields(); saveState(); });
     $('outputFormat').addEventListener('change', () => { syncCompressionField(); saveState(); });
+    $('ratio').addEventListener('change', saveState); $('imageSize').addEventListener('change', saveState);
     $('lightboxClose').onclick = closeLightbox;
     $('lightboxZoomOut').onclick = () => setLightboxZoom(lightboxView.zoom / 1.1);
     $('lightboxZoomReset').onclick = fitLightboxToWindow;

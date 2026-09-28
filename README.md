@@ -4,7 +4,8 @@
 
 ## 功能
 
-- ModelFlare API 地址和 API Key，支持 GPT Image 2 / 2.5 图像模型。
+- ModelFlare API 地址和 API Key，支持 GPT Image 2 / 2.5、Gemini 原生图片和 Seedream 5 图像模型。
+- GPT、Gemini、Seedream 三个模型系列可切换；Gemini 使用 `generateContent` 请求及比例/尺寸选项，Seedream 使用 Images generations 请求及尺寸、格式和水印选项。
 - GPT Image 2.5 的质量档位及透明背景参数联动。
 - 多张参考图上传、生成计时、预览与下载。
 - IndexedDB 历史缓存：保存提示词、模型、生成图片及参考图，支持复用、逐条删除和一键清空。
