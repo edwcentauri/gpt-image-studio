@@ -4,8 +4,10 @@
 
 ## 功能
 
-- ModelFlare API 地址和 API Key，支持 GPT Image 2 / 2.5、Gemini 原生图片和 Seedream 5 图像模型。
-- GPT、Gemini、Seedream 三个模型系列可切换；Gemini 使用 `generateContent` 请求及比例/尺寸选项，Seedream 使用 Images generations 请求及尺寸、格式和水印选项。
+- ModelFlare API 地址和 API Key，支持 GPT Image 2 / 2.5、Gemini 原生图片、Seedream 5 和 Wan 2.7 图像模型。
+- GPT、Gemini、Seedream、Wan 四个模型系列可切换；Gemini 使用 `generateContent` 请求及比例/尺寸选项，Seedream 和 Wan 使用 Images generations 请求。
+- 可通过 `GET /models` 手动刷新模型列表；保存 Key 后启动时也会自动检索。仅保留当前各系列的生图模型，结果缓存在浏览器中，失败时自动使用缓存 / 内置列表。
+- 记住上次模型及各系列最近选择；Wan 支持 1K / 2K（Pro 文生图支持 4K）、单图及最多 9 图编辑，多图使用嵌套消息结构。
 - GPT Image 2.5 的质量档位及透明背景参数联动。
 - 多张参考图上传、生成计时、预览与下载。
 - IndexedDB 历史缓存：保存提示词、模型、生成图片及参考图，支持复用、逐条删除和一键清空。
@@ -33,4 +35,4 @@ https://edwcentauri.github.io/gpt-image-studio/
 
 ## 验证范围
 
-已进行 JavaScript 语法检查和历史保存、恢复、删除、清空及失败处理的模拟测试。尚未进行真实 API 生成测试或真实浏览器端到端测试。
+已进行 JavaScript 语法检查、9 项模型发现 / 参数记忆 / Wan 请求契约回归测试，以及实际浏览器中的 Wan 切换和刷新恢复检查。历史缓存继续覆盖保存、恢复、删除、清空及失败处理的模拟测试。尚未使用真实 API Key 进行生成测试。
