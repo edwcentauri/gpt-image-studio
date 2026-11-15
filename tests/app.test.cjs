@@ -55,6 +55,7 @@ class FakeElement {
   }
   addEventListener() {}
   setAttribute() {}
+  removeAttribute() {}
   appendChild() {}
   append() {}
   remove() {}
@@ -109,6 +110,33 @@ test('只保留各系列生图模型，排除聊天与视频模型', () => {
   assert.equal(matches('seedream-6-0', 'seedream'), true);
   assert.equal(matches('wan2.8-image-pro', 'wan'), true);
   assert.equal(matches('wan2.8-video', 'wan'), false);
+});
+
+test('GPT Image 2.6 可使用 URL 参考图，只有 GPT Image 2 被旧接口规则拦截', async () => {
+  const { context, elements } = createApp();
+  await context.loadState();
+  vm.runInContext("providerModels.gpt.push('gpt-image-2.6')", context);
+  context.setProvider('gpt', false, 'gpt-image-2.6');
+  vm.runInContext("setMode('edit', false); setSourceItems([{ kind: 'url', url: 'https://example.test/reference.png' }])", context);
+  elements.apiKey.value = 'test-key';
+  elements.prompt.value = '编辑参考图';
+  let request = null;
+  context.fetch = async (url, options) => {
+    request = { url, options };
+    return { ok: false, status: 400, statusText: 'Stop after routing', json: async () => ({ message: 'Stop after routing' }) };
+  };
+  await context.run();
+  assert.equal(request.url, 'https://modelflare.dev/v1/images/edits');
+  assert.equal(request.options.headers['Content-Type'], 'application/json');
+  const body = JSON.parse(request.options.body);
+  assert.equal(body.model, 'gpt-image-2.6');
+  assert.deepEqual(JSON.parse(JSON.stringify(body.images)), [{ image_url: 'https://example.test/reference.png' }]);
+
+  context.syncModelOptions(['gpt-image-2'], 'gpt-image-2');
+  context.syncModelFields();
+  request = null;
+  await context.run();
+  assert.equal(request, null);
 });
 
 test('启动恢复上次模型，切换系列后仍分别保留选择', async () => {
