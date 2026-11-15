@@ -290,7 +290,7 @@
       return { ...record, sourceItems: (sourceItems || []).map((item) => item.kind === 'url' ? { kind: 'url', url: item.url } : { kind: 'file', file: item.file }) };
     }
     function hydrateHistoryTask(record) {
-      const sourceItems = Array.isArray(record.sourceItems) ? record.sourceItems : (record.sourceFiles || []).map((file) => ({ kind: 'file', file }));
+      const sourceItems = Array.from(record.sourceItems || (record.sourceFiles || []).map((file) => ({ kind: 'file', file })));
       const sourceFiles = sourceItems.filter((item) => item.kind === 'file').map((item) => item.file);
       sourceItems.forEach((item) => { if (item.kind === 'file') item.previewUrl = URL.createObjectURL(item.file); });
       return { ...record, sourceItems, sourceFiles, cached: true,
@@ -492,7 +492,7 @@
         const index = historyTasks.length - 1 - reverseIndex; const item = document.createElement('details'); item.className = 'history-item';
         const summary = document.createElement('summary'); const main = document.createElement('div'); main.className = 'history-summary-main';
         const title = document.createElement('div'); title.className = 'history-title'; title.textContent = `${task.mode === 'edit' ? '图生图' : '文生图'} · ${task.model || defaults.model}`;
-        const excerpt = document.createElement('div'); excerpt.className = 'history-excerpt'; excerpt.textContent = (task.prompt || '').replace(/\s+/g, ' ').trim() || '（无提示词）';
+        const excerpt = document.createElement('div'); excerpt.className = 'history-excerpt'; excerpt.textContent = task.prompt.replace(/\s+/g, ' ').trim() || '（无提示词）';
         const time = document.createElement('time'); time.className = 'history-time'; time.textContent = new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false });
         main.append(title, excerpt); summary.append(main, time);
         const body = document.createElement('div'); body.className = 'history-body'; const prompt = document.createElement('p'); prompt.className = 'history-prompt'; prompt.textContent = task.prompt || '（无提示词）';
@@ -669,7 +669,7 @@
       }
       const options = { model, prompt: requestPrompt, n: 1, watermark: false }; addIfSet(options, 'size', size); if (images.length === 1) options.image = images[0]; return options;
     }
-    async function buildGeminiRequest(requestPrompt, taskSourceItems) { const parts = [{ text: requestPrompt }]; for (const item of taskSourceItems) { let file = item.file; if (item.kind === 'url') { let response; try { response = await fetch(item.url, { signal: controller.signal }); } catch (error) { if (error.name === 'AbortError') throw error; throw new Error('Gemini 参考图 URL 无法读取，请确认图片允许跨域访问，或直接上传图片文件。'); } if (!response.ok) throw new Error(`参考图下载失败：HTTP ${response.status}`); const blob = await response.blob(); const mime = (response.headers.get('content-type') || blob.type || '').split(';', 1)[0].toLowerCase(); if (!mime.startsWith('image/')) throw new Error('Gemini 参考图 URL 返回的不是图片，请检查链接。'); file = new File([blob], 'reference-image', { type: mime }); } const dataUrl = await fileToDataUrl(file); const separator = dataUrl.indexOf(','); if (separator < 0) throw new Error('参考图无法转换为 data URL。'); parts.push({ inline_data: { mime_type: file.type || 'image/jpeg', data: dataUrl.slice(separator + 1) } }); } const config = { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: $('ratio').value } }; if ($('imageSize').value) config.imageConfig.imageSize = $('imageSize').value; return { contents: [{ role: 'user', parts }], generationConfig: config }; }
+    async function buildGeminiRequest(requestPrompt, taskSourceItems) { const parts = [{ text: requestPrompt }]; for (const item of taskSourceItems) { let file = item.file; if (item.kind === 'url') { let response; try { response = await fetch(item.url, { signal: controller.signal }); } catch (error) { if (error.name === 'AbortError') throw error; throw new Error('Gemini 参考图 URL 无法读取，请确认图片允许跨域访问，或直接上传图片文件。'); } if (!response.ok) throw new Error(`参考图下载失败：HTTP ${response.status}`); const blob = await response.blob(); const mime = (response.headers.get('content-type') || blob.type || '').split(';', 1)[0].toLowerCase(); if (!mime.startsWith('image/')) throw new Error('Gemini 参考图 URL 返回的不是图片，请检查链接。'); file = new File([blob], 'reference-image', { type: mime }); } const dataUrl = await fileToDataUrl(file); const separator = dataUrl.indexOf(','); if (separator < 0) throw new Error('Gemini 参考图无法转换为 data URL。'); parts.push({ inline_data: { mime_type: file.type || 'image/jpeg', data: dataUrl.slice(separator + 1) } }); } const config = { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: $('ratio').value } }; if ($('imageSize').value) config.imageConfig.imageSize = $('imageSize').value; return { contents: [{ role: 'user', parts }], generationConfig: config }; }
     async function run() {
       const key = $('apiKey').value.trim(), prompt = $('prompt').value.trim(); if (!key) return showError('请先填写 API Key。'); if (!prompt) return showError('请先填写提示词。'); if (mode === 'edit' && !sourceItems.length) return showError('图生图模式需要先添加至少一张参考图。');
       if (isWan() && mode === 'edit' && sourceItems.length > MAX_WAN_SOURCE_IMAGES) return showError(`Wan 图生图最多支持 ${MAX_WAN_SOURCE_IMAGES} 张参考图，请移除多余图片后重试。`);
