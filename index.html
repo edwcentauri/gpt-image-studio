@@ -575,9 +575,18 @@
     }
     function addIfSet(target, key, value) { if (value && value !== 'auto') target[key] = value; }
     function buildRequestPrompt(prompt, removeWatermark) { const text = prompt.trim(); if (!removeWatermark) return text; const completeSentence = /[。.！!?？][”’"'）)\]]?$/.test(text); return `${completeSentence ? text : `${text}。`}去除图片中的水印。`; }
-    function optionsObject(requestPrompt) { const o = { model: $('model').value, prompt: requestPrompt, n: 1 }; addIfSet(o, 'size', $('size').value); addIfSet(o, 'quality', $('quality').value); addIfSet(o, 'moderation', $('moderation').value); addIfSet(o, 'background', $('background').value); addIfSet(o, 'output_format', $('outputFormat').value); if ($('outputFormat').value !== 'png' && $('outputCompression').value !== 'auto') o.output_compression = Number($('outputCompression').value); return o; }
+    function optionsObject(requestPrompt) {
+      const o = { model: $('model').value, prompt: requestPrompt, n: 1 };
+      addIfSet(o, 'size', $('size').value); addIfSet(o, 'quality', $('quality').value);
+      if (supportsExtendedGptOptions()) {
+        addIfSet(o, 'moderation', $('moderation').value); addIfSet(o, 'background', $('background').value); addIfSet(o, 'output_format', $('outputFormat').value);
+        if ($('outputFormat').value !== 'png' && $('outputCompression').value !== 'auto') o.output_compression = Number($('outputCompression').value);
+      }
+      return o;
+    }
     // ModelFlare image contract: https://docs.modelflare.dev/zh/models/image/
     function isImage25() { return ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'].includes($('model').value); }
+    function supportsExtendedGptOptions() { return provider === 'gpt' && ($('model').value === 'gpt-image-2' || isImage25()); }
     function supportsJsonImageEdit() { return provider === 'gpt' && $('model').value !== 'gpt-image-2'; }
     function isGemini() { return provider === 'gemini'; }
     function isSeedream() { return provider === 'seedream'; }
@@ -601,15 +610,15 @@
       if (!Array.from($('model').options).some((option) => option.value === model)) syncModelOptions(providerModels[provider], providerSelections[provider]);
       providerSelections[provider] = $('model').value;
       PROVIDERS.forEach((name) => { const button = $('provider' + name[0].toUpperCase() + name.slice(1)); button.classList.toggle('active', provider === name); button.setAttribute('aria-selected', String(provider === name)); });
-      const image25 = isImage25(), gemini = isGemini(), seedream = isSeedream(), wan = isWan();
+      const image25 = isImage25(), extendedGpt = supportsExtendedGptOptions(), gemini = isGemini(), seedream = isSeedream(), wan = isWan();
       $('ratioField').hidden = !gemini;
       $('imageSizeField').hidden = !gemini;
       $('sizeField').hidden = gemini;
       $('quality').closest('div').hidden = gemini || seedream || wan;
-      $('moderation').closest('div').hidden = gemini || seedream || wan;
-      $('background').closest('div').hidden = gemini || seedream || wan;
-      $('outputFormatField').hidden = gemini || wan;
-      $('compressionField').hidden = gemini || seedream || wan || $('outputFormat').value === 'png';
+      $('moderation').closest('div').hidden = !extendedGpt;
+      $('background').closest('div').hidden = !extendedGpt;
+      $('outputFormatField').hidden = gemini || wan || (provider === 'gpt' && !extendedGpt);
+      $('compressionField').hidden = !extendedGpt || $('outputFormat').value === 'png';
       $('removeWatermark').closest('label').hidden = seedream || wan;
       if (gemini) {
         const config = geminiConfig[model] || defaultGeminiConfig;
@@ -631,7 +640,9 @@
         setAllowedOptions('outputFormat', image25 && $('background').value === 'transparent' ? ['png','webp'] : ['png','jpeg','webp']);
         $('modelHint').textContent = image25
           ? 'ModelFlare 2.5 支持 xhigh / max 质量和透明背景；超过 2560×1440 像素总量的尺寸属实验性支持。'
-          : 'ModelFlare GPT Image 2 支持 low / medium / high 质量；请求和响应遵循图片模型契约。';
+          : extendedGpt
+            ? 'ModelFlare GPT Image 2 支持 low / medium / high 质量；请求和响应遵循图片模型契约。'
+            : 'GPT Image 2.6 及后续模型使用通用兼容参数，仅发送尺寸、质量等接口明确支持的选项。';
       }
       syncOutputFields();
     }
@@ -639,14 +650,14 @@
       const transparent = isImage25() && $('background').value === 'transparent';
       const wasJpeg = $('outputFormat').value === 'jpeg';
       if (isSeedream()) { setAllowedOptions('outputFormat', ['png','jpeg']); if ($('outputFormat').value === 'webp') $('outputFormat').value = 'png'; }
-      else if (!isGemini() && !isWan()) setAllowedOptions('outputFormat', transparent ? ['png', 'webp'] : ['png', 'jpeg', 'webp']);
+      else if (supportsExtendedGptOptions()) setAllowedOptions('outputFormat', transparent ? ['png', 'webp'] : ['png', 'jpeg', 'webp']);
       if (transparent && wasJpeg) showToast('透明背景需要 PNG 或 WebP，已切换为 PNG。');
       syncCompressionField();
     }
     function syncCompressionField() {
-      const disabled = $('outputFormat').value === 'png';
-      $('outputCompression').disabled = disabled || isGemini() || isSeedream() || isWan();
-      $('compressionField').hidden = disabled || isGemini() || isSeedream() || isWan();
+      const disabled = $('outputFormat').value === 'png' || !supportsExtendedGptOptions();
+      $('outputCompression').disabled = disabled;
+      $('compressionField').hidden = disabled;
     }
     async function parseResponse(response, outputFormat) { let data; try { data = await response.json(); } catch (_) { throw new Error(`HTTP ${response.status}: ${response.statusText}`); } if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`); const item = data?.data?.[0] || data?.output?.[0] || data; const inlinePart = data?.candidates?.flatMap((candidate) => candidate?.content?.parts || []).find((part) => part?.inline_data || part?.inlineData); const inline = inlinePart?.inline_data || inlinePart?.inlineData; if (inline?.data) { const mime = inline.mime_type || inline.mimeType || 'image/png'; const bin = atob(inline.data); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); outputBlob = new Blob([bytes], { type: mime }); outputUrl = URL.createObjectURL(outputBlob); return outputUrl; } if (item?.b64_json) { const mime = outputFormat === 'jpeg' ? 'image/jpeg' : outputFormat === 'webp' ? 'image/webp' : 'image/png'; const bin = atob(item.b64_json); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); outputBlob = new Blob([bytes], { type: mime }); outputUrl = URL.createObjectURL(outputBlob); return outputUrl; } if (item?.url) { outputBlob = null; outputUrl = item.url; return outputUrl; } throw new Error('响应中未找到图片数据（请检查模型接口返回的图片字段）。'); }
     function seedreamOptions(requestPrompt, images = []) { const options = { model: $('model').value, prompt: requestPrompt, n: 1, size: $('size').value === 'auto' ? '2K' : $('size').value, response_format: 'b64_json', output_format: $('outputFormat').value, watermark: false }; if (images.length) options.image = images; return options; }
