@@ -139,6 +139,35 @@ test('GPT Image 2.6 可使用 URL 参考图，只有 GPT Image 2 被旧接口规
   assert.equal(request, null);
 });
 
+test('GPT Image 2.6 使用通用参数，2.5 保留扩展输出选项', async () => {
+  const { context, elements } = createApp();
+  await context.loadState();
+  vm.runInContext("providerModels.gpt.push('gpt-image-2.6-sunburst')", context);
+  context.setProvider('gpt', false, 'gpt-image-2.6-sunburst');
+  elements.size.value = '1024x1024';
+  elements.quality.value = 'high';
+  elements.moderation.value = 'low';
+  elements.background.value = 'opaque';
+  elements.outputFormat.value = 'jpeg';
+  elements.outputCompression.value = '80';
+  const compatible = JSON.parse(JSON.stringify(context.optionsObject('生成图片')));
+  assert.deepEqual(compatible, {
+    model: 'gpt-image-2.6-sunburst', prompt: '生成图片', n: 1, size: '1024x1024', quality: 'high',
+  });
+  assert.equal(elements.outputFormatField.hidden, true);
+  assert.equal(elements.moderation.closest('div').hidden, true);
+  assert.equal(elements.background.closest('div').hidden, true);
+
+  context.syncModelOptions(['gpt-image-2.5-sunburst'], 'gpt-image-2.5-sunburst');
+  context.syncModelFields();
+  const extended = JSON.parse(JSON.stringify(context.optionsObject('生成图片')));
+  assert.equal(extended.moderation, 'low');
+  assert.equal(extended.background, 'opaque');
+  assert.equal(extended.output_format, 'jpeg');
+  assert.equal(extended.output_compression, 80);
+  assert.equal(elements.outputFormatField.hidden, false);
+});
+
 test('启动恢复上次模型，切换系列后仍分别保留选择', async () => {
   const { context, elements } = createApp({
     'gpt-image-studio': { provider: 'gpt', model: 'gpt-image-2.5-sunburst' },
