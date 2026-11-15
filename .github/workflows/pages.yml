@@ -28,6 +28,8 @@ jobs:
           scripts.forEach((match, index) => new vm.Script(match[1], { filename: `inline-${index}.js` }));
           console.log('HTML entry and JavaScript syntax verified.');
           JS
+      - name: Test model discovery and request contracts
+        run: node --test tests/app.test.cjs
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
